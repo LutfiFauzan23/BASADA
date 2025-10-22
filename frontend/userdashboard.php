@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Bank Sampah Digital</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        :root {
+            --primary: #2ecc71;
+            --secondary: #27ae60;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+            --accent: #e74c3c;
+            --sidebar-width: 250px;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--dark);
+            color: white;
+            height: 100vh;
+            position: fixed;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar-header i {
+            font-size: 24px;
+            color: var(--primary);
+        }
+
+        .sidebar-header h2 {
+            font-size: 20px;
+        }
+
+        .sidebar-menu {
+            padding: 20px 0;
+        }
+
+        .menu-item {
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-decoration: none;
+            color: white;
+            border-left: 4px solid transparent;
+        }
+
+        .menu-item:hover, .menu-item.active {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        .menu-item.active {
+            border-left: 4px solid var(--primary);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .page-title h1 {
+            font-size: 28px;
+            color: var(--dark);
+        }
+
+        .page-title p {
+            color: #777;
+            margin-top: 5px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .user-details {
+            text-align: right;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .user-role {
+            font-size: 14px;
+            color: #777;
+        }
+
+        /* Dashboard Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+
+        .stat-icon.sampah {
+            background-color: var(--primary);
+        }
+
+        .stat-icon.saldo {
+            background-color: #3498db;
+        }
+
+        .stat-icon.poin {
+            background-color: #9b59b6;
+        }
+
+        .stat-icon.transaksi {
+            background-color: #e67e22;
+        }
+
+        .stat-info h3 {
+            font-size: 14px;
+            color: #777;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--dark);
+        }
+
+        /* Content Sections */
+        .content-section {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            color: var(--dark);
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        /* Tables */
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            color: var(--dark);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status.selesai {
+            background-color: #e8f6ef;
+            color: var(--secondary);
+        }
+
+        .status.proses {
+            background-color: #fff4e6;
+            color: #e67e22;
+        }
+
+        .status.dijadwalkan {
+            background-color: #e6f2ff;
+            color: #3498db;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin-top: 10px;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary);
+            border-radius: 5px;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .action-card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .action-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .action-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: var(--light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            font-size: 20px;
+            color: var(--primary);
+        }
+
+        .action-card h3 {
+            font-size: 16px;
+            color: var(--dark);
+            margin-bottom: 5px;
+        }
+
+        .action-card p {
+            font-size: 13px;
+            color: #777;
+        }
+
+        /* Page Content */
+        .page-content {
+            display: none;
+        }
+
+        .page-content.active {
+            display: block;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        /* Profile Styles */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 36px;
+        }
+
+        .profile-info h2 {
+            font-size: 24px;
+            color: var(--dark);
+            margin-bottom: 5px;
+        }
+
+        .profile-info p {
+            color: #777;
+        }
+
+        /* Mobile Menu Toggle */
+        .mobile-toggle {
+            display: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--dark);
+        }
+
+        /* Responsive Styles */
+        @media (max-width: 992px) {
+            .sidebar {
+                width: 70px;
+                overflow: hidden;
+            }
+            
+            .sidebar-header h2, .menu-item span {
+                display: none;
+            }
+            
+            .main-content {
+                margin-left: 70px;
+            }
+            
+            .sidebar:hover {
+                width: var(--sidebar-width);
+            }
+            
+            .sidebar:hover .sidebar-header h2,
+            .sidebar:hover .menu-item span {
+                display: block;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 0;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .mobile-toggle {
+                display: block;
+            }
+            
+            .sidebar.active {
+                width: var(--sidebar-width);
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .top-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+            
+            .user-info {
+                align-self: flex-end;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .main-content {
+                padding: 15px;
+            }
+            
+            .content-section {
+                padding: 15px;
+            }
+            
+            .stat-card {
+                padding: 15px;
+            }
+            
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+            
+            .profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-recycle"></i>
+                <h2>Bank Sampah Digital</h2>
+            </div>
+            <div class="sidebar-menu">
+                <a href="#" class="menu-item active" data-page="dashboard">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="menu-item" data-page="profile">
+                    <i class="fas fa-user"></i>
+                    <span>Profil Saya</span>
+                </a>
+                <a href="#" class="menu-item" data-page="sampah">
+                    <i class="fas fa-trash-alt"></i>
+                    <span>Kelola Sampah</span>
+                </a>
+                <a href="#" class="menu-item" data-page="riwayat">
+                    <i class="fas fa-history"></i>
+                    <span>Riwayat Transaksi</span>
+                </a>
+                <a href="#" class="menu-item" data-page="tabungan">
+                    <i class="fas fa-wallet"></i>
+                    <span>Tabungan Sampah</span>
+                </a>
+                <a href="#" class="menu-item" data-page="reward">
+                    <i class="fas fa-gift"></i>
+                    <span>Reward & Hadiah</span>
+                </a>
+                <a href="#" class="menu-item" data-page="jadwal">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Jadwal Penjemputan</span>
+                </a>
+                <a href="#" class="menu-item" data-page="pengaturan">
+                    <i class="fas fa-cog"></i>
+                    <span>Pengaturan</span>
+                </a>
+                <a href="#" class="menu-item" data-page="logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Keluar</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="top-bar">
+                <div class="page-title">
+                    <h1>Dashboard</h1>
+                    <p>Selamat datang di dashboard Bank Sampah Digital</p>
+                </div>
+                <div class="user-info">
+                    <div class="user-details">
+                        <div class="user-name">Ahmad Santoso</div>
+                        <div class="user-role">Anggota Aktif</div>
+                    </div>
+                    <div class="user-avatar">AS</div>
+                    <div class="mobile-toggle" id="mobileToggle">
+                        <i class="fas fa-bars"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Page -->
+            <div class="page-content active" id="dashboard-page">
+                <!-- Stats Section -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon sampah">
+                            <i class="fas fa-trash-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Sampah Terkumpul</h3>
+                            <div class="stat-value">125 Kg</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon saldo">
+                            <i class="fas fa-wallet"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Saldo Tabungan</h3>
+                            <div class="stat-value">Rp 375.000</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon poin">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Poin Reward</h3>
+                            <div class="stat-value">1.250 Poin</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon transaksi">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Total Transaksi</h3>
+                            <div class="stat-value">28 Kali</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Aksi Cepat</h2>
+                    </div>
+                    <div class="quick-actions">
+                        <div class="action-card">
+                            <div class="action-icon">
+                                <i class="fas fa-calendar-plus"></i>
+                            </div>
+                            <h3>Jadwalkan Penjemputan</h3>
+                            <p>Atur jadwal penjemputan sampah</p>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-icon">
+                                <i class="fas fa-receipt"></i>
+                            </div>
+                            <h3>Lihat Riwayat</h3>
+                            <p>Cek riwayat transaksi terbaru</p>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-icon">
+                                <i class="fas fa-gift"></i>
+                            </div>
+                            <h3>Tukar Poin</h3>
+                            <p>Tukar poin dengan reward menarik</p>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <h3>Laporan Bulanan</h3>
+                            <p>Lihat laporan aktivitas sampah</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Transactions -->
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Transaksi Terbaru</h2>
+                        <button class="btn btn-outline">Lihat Semua</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Jenis Sampah</th>
+                                    <th>Berat</th>
+                                    <th>Poin</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>05 Okt 2025</td>
+                                    <td>Plastik</td>
+                                    <td>5.2 Kg</td>
+                                    <td>52</td>
+                                    <td><span class="status selesai">Selesai</span></td>
+                                </tr>
+                                <tr>
+                                    <td>03 Okt 2025</td>
+                                    <td>Kertas</td>
+                                    <td>3.8 Kg</td>
+                                    <td>38</td>
+                                    <td><span class="status selesai">Selesai</span></td>
+                                </tr>
+                                <tr>
+                                    <td>01 Okt 2025</td>
+                                    <td>Kaleng</td>
+                                    <td>2.5 Kg</td>
+                                    <td>25</td>
+                                    <td><span class="status proses">Proses</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Progress Section -->
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Target Bulanan</h2>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>Target: 150 Kg</span>
+                            <span>83%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 83%"></div>
+                        </div>
+                    </div>
+                    <p style="margin-top: 15px; color: #777; font-size: 14px;">
+                        Anda telah mengumpulkan 125 Kg dari target 150 Kg sampah bulan ini. 
+                        <strong>25 Kg lagi untuk mencapai target!</strong>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Profile Page -->
+            <div class="page-content" id="profile-page">
+                <div class="content-section">
+                    <div class="profile-header">
+                        <div class="profile-avatar">AS</div>
+                        <div class="profile-info">
+                            <h2>Ahmad Santoso</h2>
+                            <p>Anggota Aktif sejak Januari 2024</p>
+                        </div>
+                    </div>
+
+                    <div class="section-header">
+                        <h2 class="section-title">Informasi Pribadi</h2>
+                        <button class="btn btn-primary">Edit Profil</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Nama Lengkap</label>
+                        <input type="text" class="form-control" value="Ahmad Santoso" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" value="ahmad.santoso@email.com" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Nomor Telepon</label>
+                        <input type="text" class="form-control" value="081234567890" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Alamat</label>
+                        <textarea class="form-control" rows="3" readonly>Jl. Merdeka No. 123, Jakarta Pusat</textarea>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Statistik Sampah</h2>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon sampah">
+                                <i class="fas fa-trash-alt"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Total Sampah</h3>
+                                <div class="stat-value">542 Kg</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon saldo">
+                                <i class="fas fa-wallet"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Total Tabungan</h3>
+                                <div class="stat-value">Rp 1.625.000</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon poin">
+                                <i class="fas fa-star"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>Poin Tertukar</h3>
+                                <div class="stat-value">750 Poin</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kelola Sampah Page -->
+            <div class="page-content" id="sampah-page">
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Kelola Sampah</h2>
+                        <button class="btn btn-primary">Tambah Sampah</button>
+                    </div>
+                    <p>Kelola sampah yang akan Anda setorkan ke Bank Sampah Digital.</p>
+                    
+                    <div class="quick-actions" style="margin-top: 20px;">
+                        <div class="action-card">
+                            <div class="action-icon">
+                                <i class="fas fa-box"></i>
+                            </div>
+                            <h3>Kategori Sampah</h3>
+                            <p>Lihat jenis sampah yang dapat disetor</p>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-icon">
+                                <i class="fas fa-weight-hanging"></i>
+                            </div>
+                            <h3>Timbang Sampah</h3>
+                            <p>Catat berat sampah yang akan disetor</p>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-icon">
+                                <i class="fas fa-tags"></i>
+                            </div>
+                            <h3>Nilai Sampah</h3>
+                            <p>Lihat perkiraan nilai sampah Anda</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Sampah Saat Ini</h2>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Jenis Sampah</th>
+                                    <th>Berat</th>
+                                    <th>Perkiraan Nilai</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Plastik PET</td>
+                                    <td>3.5 Kg</td>
+                                    <td>Rp 10.500</td>
+                                    <td><span class="status dijadwalkan">Menunggu</span></td>
+                                    <td>
+                                        <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;">Edit</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Kertas</td>
+                                    <td>2.1 Kg</td>
+                                    <td>Rp 6.300</td>
+                                    <td><span class="status dijadwalkan">Menunggu</span></td>
+                                    <td>
+                                        <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;">Edit</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Riwayat Transaksi Page -->
+            <div class="page-content" id="riwayat-page">
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Riwayat Transaksi</h2>
+                        <div>
+                            <button class="btn btn-outline">Filter</button>
+                            <button class="btn btn-primary">Unduh Laporan</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Jenis Sampah</th>
+                                    <th>Berat</th>
+                                    <th>Nilai</th>
+                                    <th>Poin</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>10 Sep 2025</td>
+                                    <td>Botol Plastik</td>
+                                    <td>4.2 Kg</td>
+                                    <td>Rp 12.600</td>
+                                    <td>42</td>
+                                    <td><span class="status selesai">Selesai</span></td>
+                                </tr>
+                                <tr>
+                                    <td>05 Sep 2025</td>
+                                    <td>Kardus</td>
+                                    <td>6.8 Kg</td>
+                                    <td>Rp 20.400</td>
+                                    <td>68</td>
+                                    <td><span class="status selesai">Selesai</span></td>
+                                </tr>
+                                <tr>
+                                    <td>28 Agu 2025</td>
+                                    <td>Kaleng Aluminium</td>
+                                    <td>3.1 Kg</td>
+                                    <td>Rp 15.500</td>
+                                    <td>31</td>
+                                    <td><span class="status selesai">Selesai</span></td>
+                                </tr>
+                                <tr>
+                                    <td>15 Agu 2025</td>
+                                    <td>Kertas Campur</td>
+                                    <td>5.5 Kg</td>
+                                    <td>Rp 16.500</td>
+                                    <td>55</td>
+                                    <td><span class="status selesai">Selesai</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add more page content for other menu items as needed -->
+            
+            <!-- Placeholder for other pages -->
+            <div class="page-content" id="tabungan-page">
+                <div class="content-section">
+                    <h2 class="section-title">Tabungan Sampah</h2>
+                    <p>Halaman tabungan sampah akan ditampilkan di sini.</p>
+                </div>
+            </div>
+            
+            <div class="page-content" id="reward-page">
+                <div class="content-section">
+                    <h2 class="section-title">Reward & Hadiah</h2>
+                    <p>Halaman reward dan hadiah akan ditampilkan di sini.</p>
+                </div>
+            </div>
+            
+            <div class="page-content" id="jadwal-page">
+                <div class="content-section">
+                    <h2 class="section-title">Jadwal Penjemputan</h2>
+                    <p>Halaman jadwal penjemputan akan ditampilkan di sini.</p>
+                </div>
+            </div>
+            
+            <div class="page-content" id="pengaturan-page">
+                <div class="content-section">
+                    <h2 class="section-title">Pengaturan</h2>
+                    <p>Halaman pengaturan akan ditampilkan di sini.</p>
+                </div>
+            </div>
+            
+            <div class="page-content" id="logout-page">
+                <div class="content-section">
+                    <h2 class="section-title">Konfirmasi Keluar</h2>
+                    <p>Apakah Anda yakin ingin keluar dari akun Anda?</p>
+                    <div style="margin-top: 20px;">
+                        <button class="btn btn-primary" id="confirmLogout">Ya, Keluar</button>
+                        <button class="btn btn-outline" id="cancelLogout">Batal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mobile sidebar toggle
+        document.getElementById('mobileToggle').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('active');
+        });
+
+        // Navigation system
+        const menuItems = document.querySelectorAll('.menu-item');
+        const pageContents = document.querySelectorAll('.page-content');
+        
+        menuItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Get the target page from data attribute
+                const targetPage = this.getAttribute('data-page');
+                
+                // Handle logout separately
+                if (targetPage === 'logout') {
+                    showPage('logout-page');
+                    // Update active menu
+                    menuItems.forEach(i => i.classList.remove('active'));
+                    this.classList.add('active');
+                    return;
+                }
+                
+                // Update active menu
+                menuItems.forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Show the target page
+                showPage(`${targetPage}-page`);
+                
+                // Update page title based on active page
+                updatePageTitle(this.querySelector('span').textContent);
+                
+                // Close sidebar on mobile after selection
+                if (window.innerWidth <= 768) {
+                    document.getElementById('sidebar').classList.remove('active');
+                }
+            });
+        });
+        
+        function showPage(pageId) {
+            // Hide all pages
+            pageContents.forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // Show the target page
+            document.getElementById(pageId).classList.add('active');
+        }
+        
+        function updatePageTitle(pageName) {
+            const pageTitle = document.querySelector('.page-title h1');
+            const pageSubtitle = document.querySelector('.page-title p');
+            
+            pageTitle.textContent = pageName;
+            
+            // Update subtitle based on page
+            switch(pageName) {
+                case 'Dashboard':
+                    pageSubtitle.textContent = 'Selamat datang di dashboard Bank Sampah Digital';
+                    break;
+                case 'Profil Saya':
+                    pageSubtitle.textContent = 'Kelola informasi profil Anda';
+                    break;
+                case 'Kelola Sampah':
+                    pageSubtitle.textContent = 'Kelola sampah yang akan disetor';
+                    break;
+                case 'Riwayat Transaksi':
+                    pageSubtitle.textContent = 'Lihat riwayat transaksi sampah Anda';
+                    break;
+                default:
+                    pageSubtitle.textContent = `Halaman ${pageName}`;
+            }
+        }
+
+        // Logout functionality
+        document.getElementById('confirmLogout').addEventListener('click', function() {
+            alert('Anda telah berhasil keluar. Anda akan diarahkan ke halaman login.');
+            // In a real application, you would redirect to login page
+            // window.location.href = 'login.html';
+        });
+        
+        document.getElementById('cancelLogout').addEventListener('click', function() {
+            // Go back to dashboard
+            menuItems.forEach(i => i.classList.remove('active'));
+            document.querySelector('[data-page="dashboard"]').classList.add('active');
+            showPage('dashboard-page');
+            updatePageTitle('Dashboard');
+        });
+
+        // Quick action cards functionality
+        const actionCards = document.querySelectorAll('.action-card');
+        actionCards.forEach(card => {
+            card.addEventListener('click', function() {
+                const title = this.querySelector('h3').textContent;
+                alert(`Anda memilih: ${title}`);
+            });
+        });
+
+        // Update greeting based on time of day
+        window.addEventListener('DOMContentLoaded', function() {
+            const hour = new Date().getHours();
+            let greeting = "Selamat datang";
+            
+            if (hour < 12) greeting = "Selamat pagi";
+            else if (hour < 15) greeting = "Selamat siang";
+            else if (hour < 19) greeting = "Selamat sore";
+            else greeting = "Selamat malam";
+            
+            // Only update if we're on dashboard
+            if (document.getElementById('dashboard-page').classList.contains('active')) {
+                document.querySelector('.page-title h1').textContent = `${greeting}, Ahmad!`;
+            }
+        });
+    </script>
+</body>
+</html>
