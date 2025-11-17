@@ -1,3 +1,11 @@
+<?php
+    session_start();
+
+    if(!isset($_SESSION['users'])) { 
+        header('location:login.php');
+    }
+?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -1080,7 +1088,7 @@
         document.getElementById('confirmLogout').addEventListener('click', function() {
             alert('Anda telah berhasil keluar. Anda akan diarahkan ke halaman login.');
             // In a real application, you would redirect to login page
-            // window.location.href = 'login.html';
+            window.location.href = '../backend/login.php';
         });
         
         document.getElementById('cancelLogout').addEventListener('click', function() {
