@@ -479,7 +479,7 @@
                     document.getElementById('password-strength').textContent = '';
                     
                     // Redirect to dashboard (simulated)
-                    // window.location.href = 'dashboard.html';
+                    window.location.href = 'dashboard.php';
                 });
             }, 1500);
         });

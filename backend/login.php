@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <?php
     session_start();
     include "connect.php";
@@ -361,4 +362,3 @@
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="register.js"></script>
 </body>
-</html>
