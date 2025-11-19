@@ -19,14 +19,14 @@
         if(isset($_POST['nama'])) {
             $nama_lengkap = $_POST['nama'];
             $alamat_email = $_POST['email'];
+            $password = $_POST['password'];
             $no_hp = $_POST['no_hp'];
             $alamat = $_POST['alamat'];
-            $password = $_POST['password'];
 
-            $query = mysqli_query($connect, "INSERT INTO users(nama_lengkap, alamat_email, nomor_telepon, alamat, password) values ('$nama_lengkap', '$alamat_email', '$no_hp', '$alamat', '$password')");
+            $query = mysqli_query($connect, "INSERT INTO users(nama_lengkap, alamat_email, password, nomor_telepon, alamat) values ('$nama_lengkap', '$alamat_email', '$password', '$no_hp', '$alamat')");
             
             if($query) {
-                echo '<script>alert("Kamu berhasil.Silahkan Login")</script>';
+                echo '<script>alert("Kamu berhasil.Silahkan Login"); location.href="login.php"</script>';
             } else {
                 echo '<script>alert("Daftar kamu gagal")</script>';
             }
@@ -402,7 +402,11 @@
                 icon.classList.add("fa-eye");
             }
         }
-        
+        // Password hash
+        const userInput = password_asli_dari_form;
+        const hashDiDatabase = ambil_dari_database;
+        if (verifyHash(userInput, hashDiDatabase)) {
+        }
         // Password strength indicator
         document.getElementById('password').addEventListener('input', function() {
             const password = this.value;

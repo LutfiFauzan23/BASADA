@@ -28,6 +28,7 @@
             --light: #ecf0f1;
             --accent: #e74c3c;
             --sidebar-width: 250px;
+            --primary-dark: #1b5e20;
         }
 
         body {
@@ -46,7 +47,7 @@
         /* Sidebar Styles */
         .sidebar {
             width: var(--sidebar-width);
-            background-color: var(--dark);
+            background-color: var(--primary-dark);
             color: white;
             height: 100vh;
             position: fixed;
