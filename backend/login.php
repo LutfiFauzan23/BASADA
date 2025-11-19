@@ -1,6 +1,61 @@
 <?php
-    session_start();
-    include "connect.php";
+session_start();
+include "connect.php";
+
+$errors = [];
+
+if(isset($_POST['login'])) {
+    $email = mysqli_real_escape_string($connect, $_POST['email']);
+    $password = $_POST['password'];
+    
+    if(empty($email)) $errors['email'] = "Email harus diisi";
+    if(empty($password)) $errors['password'] = "Password harus diisi";
+    
+    if(empty($errors)) {
+        // Cari user berdasarkan email
+        $query = mysqli_prepare($connect, "SELECT id, nama_lengkap, alamat_email, password FROM users WHERE alamat_email = ?");
+        
+        if($query) {
+            mysqli_stmt_bind_param($query, "s", $email);
+            mysqli_stmt_execute($query);
+            mysqli_stmt_store_result($query);
+            
+            if(mysqli_stmt_num_rows($query) == 1) {
+                // Bind result variables
+                mysqli_stmt_bind_result($query, $user_id, $nama_lengkap, $alamat_email, $hashed_password);
+                mysqli_stmt_fetch($query);
+                
+                // Verifikasi password menggunakan password_verify()
+                if(password_verify($password, $hashed_password)) {
+                    // Login berhasil
+                    $_SESSION['user_id'] = $user_id;
+                    $_SESSION['nama_lengkap'] = $nama_lengkap;
+                    $_SESSION['alamat_email'] = $alamat_email;
+                    $_SESSION['logged_in'] = true;
+                    
+                    echo '<script>
+                        Swal.fire({
+                            icon: "success",
+                            title: "Login Berhasil!",
+                            text: "Selamat datang ' . $nama_lengkap . '",
+                            confirmButtonColor: "#2e7d32"
+                        }).then(() => {
+                            window.location.href = "dashboard.php";
+                        });
+                    </script>';
+                } else {
+                    $errors['password'] = "Password salah";
+                }
+            } else {
+                $errors['email'] = "Email tidak terdaftar";
+            }
+            
+            mysqli_stmt_close($query);
+        } else {
+            $errors['general'] = "Error database: " . mysqli_error($connect);
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -14,25 +69,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-
-    <?php
-        if(isset($_POST['nama'])) {
-            $nama_lengkap = $_POST['nama'];
-            $alamat_email = $_POST['email'];
-            $password = $_POST['password'];
-
-            $query = mysqli_query($connect, "SELECT * FROM users WHERE nama_lengkap='$nama_lengkap' and alamat_email='$alamat_email' and password='$password'");
-
-            if(mysqli_num_rows($query) > 0 ) {
-                $data = mysqli_fetch_array($query);
-                $_SESSION['users'] = $data;
-                echo '<script>alert("anda berhasil login");location.href="../frontend/dashboard.php";</script>';
-            } else {
-                echo '<script>alert("nama/email/password kamu ga sesuai nih")</script>';
-            }
-        }
-    ?>
-
     <style>:root {
             --primary: #2e7d32;
             --primary-dark: #1b5e20;
@@ -340,7 +376,7 @@
             <div class="form-group">
                 <label for="password"><i class="fas fa-lock" style="margin-right: 5px;"></i> Password</label>
                 <div class="password-container">
-                    <input type="password" id="password" name="password" placeholder="Masukkan Password Anda" minlength="8" required>
+                    <input type="password" id="password" name="password" placeholder="Masukkan Password Anda" minlength="7" required>
                     <span class="toggle-password" onclick="togglePassword('password')">
                         <i class="fas fa-eye"></i>
                     </span>
@@ -394,11 +430,6 @@
                 strengthElement.style.color = 'var(--primary)';
             }
         });
-        // Hash pass
-        const userInput = password_asli_dari_form;
-        const hashDiDatabase = ambil_dari_database;
-        if (verifyHash(userInput, hashDiDatabase)) {
-        }
         // Form validation
         document.getElementById('registerForm').addEventListener('submit', function(e) {
             e.preventDefault();

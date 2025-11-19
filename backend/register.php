@@ -1,6 +1,125 @@
 <?php
-    session_start();
-    include "connect.php";
+session_start();
+include "connect.php";
+
+$errors = [];
+$old_input = [];
+
+if(isset($_POST['submit'])) {
+    // Ambil data dari form
+    $nama_lengkap = mysqli_real_escape_string($connect, $_POST['nama']);
+    $alamat_email = mysqli_real_escape_string($connect, $_POST['email']);
+    $no_hp = mysqli_real_escape_string($connect, $_POST['no_hp']);
+    $alamat = mysqli_real_escape_string($connect, $_POST['alamat']);
+    $password = $_POST['password'];
+    $confirm_password = $_POST['confirm-password'];
+    
+    // Simpan input lama
+    $old_input = [
+        'nama' => $nama_lengkap,
+        'email' => $alamat_email,
+        'no_hp' => $no_hp,
+        'alamat' => $alamat
+    ];
+    
+    // Validasi required fields
+    if(empty($nama_lengkap)) $errors['nama'] = "Nama lengkap harus diisi";
+    if(empty($alamat_email)) $errors['email'] = "Email harus diisi";
+    if(empty($password)) $errors['password'] = "Password harus diisi";
+    if(empty($confirm_password)) $errors['confirm_password'] = "Konfirmasi password harus diisi";
+    if(empty($no_hp)) $errors['no_hp'] = "Nomor telepon harus diisi";
+    if(empty($alamat)) $errors['alamat'] = "Alamat harus diisi";
+    
+    // Validasi format email
+    if(!empty($alamat_email) && !filter_var($alamat_email, FILTER_VALIDATE_EMAIL)) {
+        $errors['email'] = "Format email tidak valid";
+    }
+    
+    // Validasi password match
+    if(!empty($password) && !empty($confirm_password) && $password !== $confirm_password) {
+        $errors['confirm_password'] = "Password dan konfirmasi password tidak sama";
+    }
+    
+    // Validasi panjang password
+    if(!empty($password) && strlen($password) < 6) {
+        $errors['password'] = "Password minimal 6 karakter";
+    }
+    
+    // Cek apakah email sudah terdaftar (hanya jika tidak ada error email)
+    if(empty($errors['email']) && !empty($alamat_email)) {
+        $check_email = mysqli_prepare($connect, "SELECT id FROM users WHERE alamat_email = ?");
+        if($check_email) {
+            mysqli_stmt_bind_param($check_email, "s", $alamat_email);
+            mysqli_stmt_execute($check_email);
+            mysqli_stmt_store_result($check_email);
+            
+            if(mysqli_stmt_num_rows($check_email) > 0) {
+                $errors['email'] = "Email sudah terdaftar";
+            }
+            mysqli_stmt_close($check_email);
+        } else {
+            $errors['general'] = "Error database: " . mysqli_error($connect);
+        }
+    }
+    
+    // Cek apakah nomor HP sudah terdaftar (hanya jika tidak ada error no_hp)
+    if(empty($errors['no_hp']) && !empty($no_hp)) {
+        $check_hp = mysqli_prepare($connect, "SELECT id FROM users WHERE nomor_telepon = ?");
+        if($check_hp) {
+            mysqli_stmt_bind_param($check_hp, "s", $no_hp);
+            mysqli_stmt_execute($check_hp);
+            mysqli_stmt_store_result($check_hp);
+            
+            if(mysqli_stmt_num_rows($check_hp) > 0) {
+                $errors['no_hp'] = "Nomor telepon sudah terdaftar";
+            }
+            mysqli_stmt_close($check_hp);
+        } else {
+            $errors['general'] = "Error database: " . mysqli_error($connect);
+        }
+    }
+    
+    // Debug: Tampilkan errors jika ada
+    if(!empty($errors)) {
+        error_log("Validation Errors: " . print_r($errors, true));
+    }
+    
+    // Jika tidak ada error, proses pendaftaran
+    if(empty($errors)) {
+        $password_hash = password_hash($password, PASSWORD_DEFAULT);
+        
+        // Gunakan prepared statement untuk insert
+        $query = mysqli_prepare($connect, "INSERT INTO users (nama_lengkap, alamat_email, password, nomor_telepon, alamat) VALUES (?, ?, ?, ?, ?)");
+        
+        if($query) {
+            mysqli_stmt_bind_param($query, "sssss", $nama_lengkap, $alamat_email, $password_hash, $no_hp, $alamat);
+            
+            if(mysqli_stmt_execute($query)) {
+                $success = true;
+                echo '<script>
+                    Swal.fire({
+                        icon: "success",
+                        title: "Pendaftaran Berhasil!",
+                        text: "Silakan login untuk melanjutkan",
+                        confirmButtonColor: "#2e7d32"
+                    }).then(() => {
+                        window.location.href = "login.php";
+                    });
+                </script>';
+                // Clear old input setelah sukses
+                $old_input = [];
+            } else {
+                $errors['general'] = "Pendaftaran gagal: " . mysqli_stmt_error($query);
+                error_log("Insert Error: " . mysqli_stmt_error($query));
+            }
+            
+            mysqli_stmt_close($query);
+        } else {
+            $errors['general'] = "Error prepared statement: " . mysqli_error($connect);
+            error_log("Prepared Statement Error: " . mysqli_error($connect));
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -9,31 +128,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register Nasabah - Bank Sampah Digital (BASADA)</title>
-    <link rel="stylesheet" href="register.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-
-    <?php
-        if(isset($_POST['nama'])) {
-            $nama_lengkap = $_POST['nama'];
-            $alamat_email = $_POST['email'];
-            $password = $_POST['password'];
-            $no_hp = $_POST['no_hp'];
-            $alamat = $_POST['alamat'];
-
-            $query = mysqli_query($connect, "INSERT INTO users(nama_lengkap, alamat_email, password, nomor_telepon, alamat) values ('$nama_lengkap', '$alamat_email', '$password', '$no_hp', '$alamat')");
-            
-            if($query) {
-                echo '<script>alert("Kamu berhasil.Silahkan Login"); location.href="login.php"</script>';
-            } else {
-                echo '<script>alert("Daftar kamu gagal")</script>';
-            }
-        }
-    ?>
-
-    <style>:root {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
             --primary: #2e7d32;
             --primary-dark: #1b5e20;
             --primary-light: #81c784;
@@ -187,6 +286,11 @@
             background-color: white;
         }
         
+        .input-error {
+            border-color: var(--error) !important;
+            box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1) !important;
+        }
+        
         .password-container {
             position: relative;
         }
@@ -205,7 +309,13 @@
             color: var(--error);
             font-size: 12px;
             margin-top: 5px;
-            display: none;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .error-message i {
+            font-size: 14px;
         }
         
         .register-btn {
@@ -232,21 +342,11 @@
             box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
         }
         
-        .register-btn::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(to right, var(--primary-light), var(--primary));
-            opacity: 0;
-            z-index: -1;
-            transition: opacity 0.3s ease;
-        }
-        
-        .register-btn:hover::after {
-            opacity: 1;
+        .register-btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
         
         .login-link {
@@ -270,23 +370,22 @@
             color: var(--primary);
         }
         
-        .input-icon {
-            position: absolute;
-            left: 15px;
-            top: 40px;
-            color: var(--primary);
-            font-size: 18px;
-        }
-        
-        .input-with-icon {
-            padding-left: 45px !important;
-        }
-        
         .eco-tip {
             font-size: 12px;
             color: var(--text-light);
             margin-top: 5px;
             font-style: italic;
+        }
+        
+        .general-error {
+            background-color: #ffebee;
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
         }
         
         @media (max-width: 576px) {
@@ -301,8 +400,10 @@
             .leaf-decoration {
                 display: none;
             }
-        }</style>
-    <form method="POST">
+        }
+    </style>
+</head>
+<body>
     <div class="container">
         <div class="leaf-decoration leaf-1">
             <i class="fas fa-leaf"></i>
@@ -323,59 +424,102 @@
                 Help Desk: <strong>0877-7760-4327</strong>
             </p>
         </div>
+
+        <?php if(isset($errors['general'])): ?>
+            <div class="general-error">
+                <i class="fas fa-exclamation-triangle"></i> <?php echo $errors['general']; ?>
+            </div>
+        <?php endif; ?>
         
-        <form id="registerForm">
+        <form method="POST" id="registerForm">
             <div class="form-group">
                 <label for="nama"><i class="fas fa-user" style="margin-right: 5px;"></i> Nama Lengkap</label>
-                <input type="text" id="nama" name="nama" placeholder="Masukkan nama lengkap" required>
+                <input type="text" id="nama" name="nama" placeholder="Masukkan nama lengkap" 
+                       value="<?php echo isset($old_input['nama']) ? htmlspecialchars($old_input['nama']) : ''; ?>"
+                       class="<?php echo isset($errors['nama']) ? 'input-error' : ''; ?>">
+                <?php if(isset($errors['nama'])): ?>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $errors['nama']; ?>
+                    </div>
+                <?php endif; ?>
                 <p class="eco-tip">Data Anda akan dijaga kerahasiaannya</p>
             </div>
             
             <div class="form-group">
                 <label for="email"><i class="fas fa-envelope" style="margin-right: 5px;"></i> Alamat Email</label>
-                <input type="email" id="email" name="email" placeholder="contoh@email.com" required>
+                <input type="email" id="email" name="email" placeholder="contoh@email.com" 
+                       value="<?php echo isset($old_input['email']) ? htmlspecialchars($old_input['email']) : ''; ?>"
+                       class="<?php echo isset($errors['email']) ? 'input-error' : ''; ?>">
+                <?php if(isset($errors['email'])): ?>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $errors['email']; ?>
+                    </div>
+                <?php endif; ?>
             </div>
             
             <div class="form-group">
                 <label for="no_hp"><i class="fas fa-mobile-alt" style="margin-right: 5px;"></i> Nomor Handphone</label>
-                <input type="tel" id="no_hp" name="no_hp" placeholder="0812 3456 7890" required>
+                <input type="tel" id="no_hp" name="no_hp" placeholder="0812 3456 7890" 
+                       value="<?php echo isset($old_input['no_hp']) ? htmlspecialchars($old_input['no_hp']) : ''; ?>"
+                       class="<?php echo isset($errors['no_hp']) ? 'input-error' : ''; ?>">
+                <?php if(isset($errors['no_hp'])): ?>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $errors['no_hp']; ?>
+                    </div>
+                <?php endif; ?>
                 <p class="eco-tip">Masukkan nomor Handphone sesuai dengan E-wallet yang anda pakai</p>
             </div>
             
             <div class="form-group">
                 <label for="alamat"><i class="fas fa-map-marker-alt" style="margin-right: 5px;"></i> Alamat Lengkap</label>
-                <input type="text" id="alamat" name="alamat" placeholder="Jl. Contoh No. 123" required>
+                <input type="text" id="alamat" name="alamat" placeholder="Jl. Contoh No. 123" 
+                       value="<?php echo isset($old_input['alamat']) ? htmlspecialchars($old_input['alamat']) : ''; ?>"
+                       class="<?php echo isset($errors['alamat']) ? 'input-error' : ''; ?>">
+                <?php if(isset($errors['alamat'])): ?>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $errors['alamat']; ?>
+                    </div>
+                <?php endif; ?>
                 <p class="eco-tip">Untuk memudahkan penjemputan sampah</p>
             </div>
             
             <div class="form-group">
                 <label for="password"><i class="fas fa-lock" style="margin-right: 5px;"></i> Password</label>
                 <div class="password-container">
-                    <input type="password" id="password" name="password" placeholder="Minimal 8 karakter" minlength="8" required>
+                    <input type="password" id="password" name="password" placeholder="Minimal 6 karakter" 
+                           class="<?php echo isset($errors['password']) ? 'input-error' : ''; ?>">
                     <span class="toggle-password" onclick="togglePassword('password')">
                         <i class="fas fa-eye"></i>
                     </span>
                 </div>
+                <?php if(isset($errors['password'])): ?>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $errors['password']; ?>
+                    </div>
+                <?php endif; ?>
                 <div id="password-strength" style="font-size: 12px; margin-top: 5px; color: var(--text-light);"></div>
             </div>
             
             <div class="form-group">
                 <label for="confirm-password"><i class="fas fa-key" style="margin-right: 5px;"></i> Konfirmasi Password</label>
                 <div class="password-container">
-                    <input type="password" id="confirm-password" name="confirm-password" placeholder="Ketik ulang password" minlength="8" required>
+                    <input type="password" id="confirm-password" name="confirm-password" placeholder="Ketik ulang password" 
+                           class="<?php echo isset($errors['confirm_password']) ? 'input-error' : ''; ?>">
                     <span class="toggle-password" onclick="togglePassword('confirm-password')">
                         <i class="fas fa-eye"></i>
                     </span>
                 </div>
-                <div id="password-error" class="error-message">
-                    <i class="fas fa-exclamation-circle"></i> Password dan Konfirmasi Password tidak sama
-                </div>
+                <?php if(isset($errors['confirm_password'])): ?>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $errors['confirm_password']; ?>
+                    </div>
+                <?php endif; ?>
             </div>
             
             <div class="form-group" style="margin-top: 25px;">
-                <a href="../backend/login.php"><button type="submit" class="register-btn" name="daftar">
+                <button type="submit" class="register-btn" name="submit">
                     <i class="fas fa-user-plus"></i> Daftar Sekarang
-                </button></a>
+                </button>
                 <p class="eco-tip" style="text-align: center; margin-top: 10px;">
                     Dengan mendaftar, Anda menyetujui kebijakan pengelolaan sampah kami
                 </p>
@@ -387,10 +531,11 @@
         </div>
     </div>
 
-    <script>        // Toggle password visibility
+    <script>
+        // Toggle password visibility
         function togglePassword(fieldId) {
             const field = document.getElementById(fieldId);
-            const icon = field.nextElementSibling.querySelector('i');
+            const icon = field.parentNode.querySelector('.toggle-password i');
             
             if (field.type === "password") {
                 field.type = "text";
@@ -402,11 +547,7 @@
                 icon.classList.add("fa-eye");
             }
         }
-        // Password hash
-        const userInput = password_asli_dari_form;
-        const hashDiDatabase = ambil_dari_database;
-        if (verifyHash(userInput, hashDiDatabase)) {
-        }
+
         // Password strength indicator
         document.getElementById('password').addEventListener('input', function() {
             const password = this.value;
@@ -417,8 +558,8 @@
                 return;
             }
             
-            if (password.length < 8) {
-                strengthElement.textContent = '🔴 Lemah (minimal 8 karakter)';
+            if (password.length < 6) {
+                strengthElement.textContent = '🔴 Lemah (minimal 6 karakter)';
                 strengthElement.style.color = 'var(--error)';
             } else if (!/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
                 strengthElement.textContent = '🟡 Sedang (gunakan kombinasi huruf, angka, dan simbol)';
@@ -428,80 +569,25 @@
                 strengthElement.style.color = 'var(--primary)';
             }
         });
-        
-        // Form validation
-        document.getElementById('registerForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm-password').value;
-            const errorElement = document.getElementById('password-error');
-            
-            // Reset error state
-            errorElement.style.display = 'none';
-            document.getElementById('confirm-password').style.borderColor = '';
-            
-            if (password !== confirmPassword) {
-                errorElement.style.display = 'block';
-                document.getElementById('confirm-password').style.borderColor = 'var(--error)';
-                document.getElementById('confirm-password').focus();
-                return false;
-            }
-            
-            // Show loading state
-            const submitButton = this.querySelector('button[type="submit"]');
-            const originalText = submitButton.innerHTML;
-            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
-            submitButton.disabled = true;
-            
-            // Simulate API call
-            setTimeout(() => {
-                // Form is valid - show success message
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Pendaftaran Berhasil!',
-                    html: `
-                        <div style="text-align: left;">
-                            <p style="margin-bottom: 15px;">Selamat! Anda sekarang menjadi bagian dari gerakan lingkungan Bank Sampah Hijau Lestari.</p>
-                            <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);">
-                                <p><strong>Nama:</strong> ${document.getElementById('nama').value}</p>
-                                <p><strong>Email:</strong> ${document.getElementById('email').value}</p>
-                                <p><strong>No. HP:</strong> ${document.getElementById('no_hp').value}</p>
-                                <p><strong>Jenis Nasabah:</strong> ${document.getElementById('jenis').options[document.getElementById('jenis').selectedIndex].text}</p>
-                            </div>
-                            <p style="margin-top: 15px; font-size: 14px;">Tim kami akan menghubungi Anda untuk informasi lebih lanjut tentang penjemputan sampah pertama Anda.</p>
-                        </div>
-                    `,
-                    confirmButtonColor: 'var(--primary)',
-                    confirmButtonText: 'Lanjut ke Dashboard',
-                    footer: '<img src="https://img.icons8.com/color/48/000000/recycle-sign.png" width="30" style="margin-right: 5px;"> Terima kasih telah peduli terhadap lingkungan!'
-                }).then(() => {
-                    // Reset form and button state
-                    this.reset();
-                    submitButton.innerHTML = originalText;
-                    submitButton.disabled = false;
-                    document.getElementById('password-strength').textContent = '';
-                    
-                    // Redirect to dashboard (simulated)
-                    window.location.href = 'dashboard.php';
-                });
-            }, 1500);
-        });
 
-        // Real-time password validation
+        // Real-time password confirmation check
         document.getElementById('confirm-password').addEventListener('input', function() {
             const password = document.getElementById('password').value;
             const confirmPassword = this.value;
-            const errorElement = document.getElementById('password-error');
             
-            if (password !== confirmPassword && confirmPassword !== '') {
-                errorElement.style.display = 'block';
-                this.style.borderColor = 'var(--error)';
+            if (confirmPassword && password !== confirmPassword) {
+                this.classList.add('input-error');
             } else {
-                errorElement.style.display = 'none';
-                this.style.borderColor = '';
+                this.classList.remove('input-error');
             }
-        });</script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        });
+
+        // Clear error styles on input
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', function() {
+                this.classList.remove('input-error');
+            });
+        });
+    </script>
 </body>
 </html>
