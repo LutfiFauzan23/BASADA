@@ -1,9 +1,10 @@
 <?php
 session_start();
-include "connect.php";
+include "../backend/connect.php";
 
 $errors = [];
 $old_input = [];
+$success = false;
 
 if(isset($_POST['submit'])) {
     // Ambil data dari form
@@ -79,11 +80,6 @@ if(isset($_POST['submit'])) {
         }
     }
     
-    // Debug: Tampilkan errors jika ada
-    if(!empty($errors)) {
-        error_log("Validation Errors: " . print_r($errors, true));
-    }
-    
     // Jika tidak ada error, proses pendaftaran
     if(empty($errors)) {
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
@@ -96,27 +92,15 @@ if(isset($_POST['submit'])) {
             
             if(mysqli_stmt_execute($query)) {
                 $success = true;
-                echo '<script>
-                    Swal.fire({
-                        icon: "success",
-                        title: "Pendaftaran Berhasil!",
-                        text: "Silakan login untuk melanjutkan",
-                        confirmButtonColor: "#2e7d32"
-                    }).then(() => {
-                        window.location.href = "login.php";
-                    });
-                </script>';
                 // Clear old input setelah sukses
                 $old_input = [];
             } else {
                 $errors['general'] = "Pendaftaran gagal: " . mysqli_stmt_error($query);
-                error_log("Insert Error: " . mysqli_stmt_error($query));
             }
             
             mysqli_stmt_close($query);
         } else {
             $errors['general'] = "Error prepared statement: " . mysqli_error($connect);
-            error_log("Prepared Statement Error: " . mysqli_error($connect));
         }
     }
 }
@@ -588,6 +572,70 @@ if(isset($_POST['submit'])) {
                 this.classList.remove('input-error');
             });
         });
+
+        // SweetAlert untuk notifikasi
+        <?php if($success): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            Swal.fire({
+                title: 'Pendaftaran Berhasil!',
+                text: 'Akun Anda telah berhasil dibuat. Silakan login untuk melanjutkan.',
+                icon: 'success',
+                iconColor: '#2e7d32',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#2e7d32',
+                customClass: {
+                    popup: 'sweetalert-custom',
+                    title: 'sweetalert-title',
+                    confirmButton: 'sweetalert-confirm-button'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = 'login.php';
+                }
+            });
+        });
+        <?php elseif(isset($errors['general'])): ?>
+        document.addEventListener('DOMContentLoaded', function() {
+            Swal.fire({
+                title: 'Ada Kesalahan!',
+                text: '<?php echo $errors['general']; ?>',
+                icon: 'error',
+                iconColor: '#c62828',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#c62828',
+                customClass: {
+                    popup: 'sweetalert-custom',
+                    title: 'sweetalert-title',
+                    confirmButton: 'sweetalert-confirm-button'
+                }
+            });
+        });
+        <?php endif; ?>
+
+        // Style tambahan untuk SweetAlert
+        const style = document.createElement('style');
+        style.textContent = `
+            .sweetalert-custom {
+                border-radius: 12px;
+                border: 2px solid var(--primary);
+            }
+            .sweetalert-title {
+                color: var(--primary-dark);
+                font-family: 'Poppins', sans-serif;
+            }
+            .sweetalert-confirm-button {
+                font-family: 'Poppins', sans-serif;
+                font-weight: 600;
+                border-radius: 8px;
+            }
+            .swal2-success [class^=swal2-success-line] {
+                background-color: #2e7d32 !important;
+            }
+            .swal2-success .swal2-success-ring {
+                border-color: #2e7d32 !important;
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>

@@ -453,7 +453,7 @@
                     <li><a href="#how-it-works">HOW IT WORKS</a></li>
                     <div class="auth-buttons">
                         <a href="../backend/login.php"><button class="btn btn-outline">Login</button></a>
-                        <a href="../backend/formregister.php"><button class="btn btn-primary">Sign Up</button></a>
+                        <a href="../backend/register.php"><button class="btn btn-primary">Sign Up</button></a>
                     </div>
                 </ul>
                 <div class="mobile-menu">
@@ -617,9 +617,9 @@
                 <div class="footer-column">
                     <h3>Kontak</h3>
                     <ul class="footer-links">
-                        <li><i class="fas fa-map-marker-alt"></i> Jl. Lingkungan Hijau No. 123</li>
-                        <li><i class="fas fa-phone"></i> 0857 1234 5678</li>
-                        <li><i class="fas fa-envelope"></i> info@banksampahdigital.id</li>
+                        <li><i class="fas fa-map-marker-alt"></i> Jl. Budi Utomo No.7</li>
+                        <li><i class="fas fa-phone"></i> 0857 1103 9523</li>
+                        <li><i class="fas fa-envelope"></i> basada964@gmail.com</li>
                     </ul>
                 </div>
             </div>

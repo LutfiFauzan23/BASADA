@@ -3,13 +3,22 @@ session_start();
 include "connect.php";
 
 $errors = [];
+$old_input = [];
 
 if(isset($_POST['login'])) {
     $email = mysqli_real_escape_string($connect, $_POST['email']);
     $password = $_POST['password'];
     
-    if(empty($email)) $errors['email'] = "Email harus diisi";
-    if(empty($password)) $errors['password'] = "Password harus diisi";
+    // Simpan input lama
+    $old_input = ['email' => $email];
+    
+    // Validasi
+    if(empty($email)) {
+        $errors['email'] = "Email harus diisi";
+    }
+    if(empty($password)) {
+        $errors['password'] = "Password harus diisi";
+    }
     
     if(empty($errors)) {
         // Cari user berdasarkan email
@@ -18,31 +27,23 @@ if(isset($_POST['login'])) {
         if($query) {
             mysqli_stmt_bind_param($query, "s", $email);
             mysqli_stmt_execute($query);
-            mysqli_stmt_store_result($query);
+            $result = mysqli_stmt_get_result($query);
             
-            if(mysqli_stmt_num_rows($query) == 1) {
-                // Bind result variables
-                mysqli_stmt_bind_result($query, $user_id, $nama_lengkap, $alamat_email, $hashed_password);
-                mysqli_stmt_fetch($query);
+            if(mysqli_num_rows($result) == 1) {
+                $user = mysqli_fetch_assoc($result);
+                $hashed_password = $user['password'];
                 
-                // Verifikasi password menggunakan password_verify()
+                // Verifikasi password
                 if(password_verify($password, $hashed_password)) {
                     // Login berhasil
-                    $_SESSION['user_id'] = $user_id;
-                    $_SESSION['nama_lengkap'] = $nama_lengkap;
-                    $_SESSION['alamat_email'] = $alamat_email;
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['nama'] = $user['nama_lengkap'];
+                    $_SESSION['alamat_email'] = $user['alamat_email'];
                     $_SESSION['logged_in'] = true;
                     
-                    echo '<script>
-                        Swal.fire({
-                            icon: "success",
-                            title: "Login Berhasil!",
-                            text: "Selamat datang ' . $nama_lengkap . '",
-                            confirmButtonColor: "#2e7d32"
-                        }).then(() => {
-                            window.location.href = "dashboard.php";
-                        });
-                    </script>';
+                    // Redirect langsung tanpa SweetAlert (lebih reliable)
+                    header("Location: ../frontend/dashboard.php");
+                    exit;
                 } else {
                     $errors['password'] = "Password salah";
                 }
@@ -52,24 +53,23 @@ if(isset($_POST['login'])) {
             
             mysqli_stmt_close($query);
         } else {
-            $errors['general'] = "Error database: " . mysqli_error($connect);
+            $errors['general'] = "Error database";
         }
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form Login - Bank Sampah Hijau Lestari</title>
-    <link rel="stylesheet" href="register.css">
+    <title>Login - Bank Sampah Digital (BASADA)</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-</head>
-<body>
-    <style>:root {
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
             --primary: #2e7d32;
             --primary-dark: #1b5e20;
             --primary-light: #81c784;
@@ -111,7 +111,7 @@ if(isset($_POST['login'])) {
             box-shadow: var(--shadow);
             padding: 40px;
             width: 100%;
-            max-width: 480px;
+            max-width: 450px;
             position: relative;
             overflow: hidden;
             border: 1px solid var(--border);
@@ -157,7 +157,6 @@ if(isset($_POST['login'])) {
         }
         
         .logo {
-            width: 80px;
             margin-bottom: 15px;
         }
         
@@ -166,7 +165,6 @@ if(isset($_POST['login'])) {
             font-size: 28px;
             font-weight: 600;
             margin-bottom: 10px;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
         }
         
         .subtitle {
@@ -186,11 +184,6 @@ if(isset($_POST['login'])) {
             border: 1px dashed var(--primary-light);
         }
         
-        .help-desk strong {
-            color: var(--primary-dark);
-            font-weight: 500;
-        }
-        
         .form-group {
             margin-bottom: 20px;
             position: relative;
@@ -205,7 +198,7 @@ if(isset($_POST['login'])) {
             color: var(--primary-dark);
         }
         
-        input, select {
+        input {
             width: 100%;
             padding: 12px 15px;
             border: 1px solid var(--border);
@@ -216,11 +209,16 @@ if(isset($_POST['login'])) {
             background-color: rgba(255, 255, 255, 0.8);
         }
         
-        input:focus, select:focus {
+        input:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.2);
             background-color: white;
+        }
+        
+        .input-error {
+            border-color: var(--error) !important;
+            box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.1) !important;
         }
         
         .password-container {
@@ -241,10 +239,16 @@ if(isset($_POST['login'])) {
             color: var(--error);
             font-size: 12px;
             margin-top: 5px;
-            display: none;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
         
-        .register-btn {
+        .error-message i {
+            font-size: 14px;
+        }
+        
+        .login-btn {
             background: linear-gradient(to right, var(--primary), var(--primary-dark));
             color: white;
             border: none;
@@ -256,73 +260,46 @@ if(isset($_POST['login'])) {
             cursor: pointer;
             margin-top: 10px;
             transition: all 0.3s ease;
-            letter-spacing: 0.5px;
-            position: relative;
-            overflow: hidden;
-            z-index: 1;
         }
         
-        .register-btn:hover {
+        .login-btn:hover {
             background: linear-gradient(to right, var(--primary-dark), var(--primary));
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
         }
         
-        .register-btn::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(to right, var(--primary-light), var(--primary));
-            opacity: 0;
-            z-index: -1;
-            transition: opacity 0.3s ease;
+        .login-btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
         }
         
-        .register-btn:hover::after {
-            opacity: 1;
-        }
-        
-        .login-link {
+        .register-link {
             text-align: center;
             margin-top: 25px;
             font-size: 14px;
             color: var(--text-light);
-            position: relative;
-            z-index: 1;
         }
         
-        .login-link a {
+        .register-link a {
             color: var(--primary-dark);
             text-decoration: none;
             font-weight: 500;
-            transition: all 0.2s ease;
         }
         
-        .login-link a:hover {
+        .register-link a:hover {
             text-decoration: underline;
-            color: var(--primary);
         }
         
-        .input-icon {
-            position: absolute;
-            left: 15px;
-            top: 40px;
-            color: var(--primary);
-            font-size: 18px;
-        }
-        
-        .input-with-icon {
-            padding-left: 45px !important;
-        }
-        
-        .eco-tip {
-            font-size: 12px;
-            color: var(--text-light);
-            margin-top: 5px;
-            font-style: italic;
+        .general-error {
+            background-color: #ffebee;
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
         }
         
         @media (max-width: 576px) {
@@ -338,8 +315,9 @@ if(isset($_POST['login'])) {
                 display: none;
             }
         }
-        </style>
-    <form method="POST">
+    </style>
+</head>
+<body>
     <div class="container">
         <div class="leaf-decoration leaf-1">
             <i class="fas fa-leaf"></i>
@@ -353,50 +331,73 @@ if(isset($_POST['login'])) {
                 <i class="fas fa-recycle" style="font-size: 48px; color: var(--primary-dark);"></i>
             </div>
             <h1>Login Nasabah</h1>
-            <p class="subtitle">Bergabunglah dengan gerakan peduli lingkungan</p>
+            <p class="subtitle">Masuk ke akun Bank Sampah Digital Anda</p>
             <p class="help-desk">
                 <strong>Bank Sampah Digital (BASADA)</strong><br>
-                Jadilah bagian dari perubahan lingkungan<br>
                 Help Desk: <strong>0877-7760-4327</strong>
             </p>
         </div>
-        
-        <form id="registerForm">
-            <div class="form-group">
-                <label for="nama"><i class="fas fa-user" style="margin-right: 5px;"></i> Nama Lengkap</label>
-                <input type="text" id="nama" name="nama" placeholder="Masukkan nama lengkap" required>
-                <p class="eco-tip">Masukkan nama sesuai dengan akun yang anda sudah buat</p>
+
+        <!-- Tampilkan error general -->
+        <?php if(isset($errors['general'])): ?>
+            <div class="general-error">
+                <i class="fas fa-exclamation-triangle"></i> <?php echo $errors['general']; ?>
             </div>
-            
+        <?php endif; ?>
+        
+        <!-- Tampilkan error jika login gagal -->
+        <?php if(isset($_GET['error']) && $_GET['error'] == 'login_failed'): ?>
+            <div class="general-error">
+                <i class="fas fa-exclamation-triangle"></i> Email atau password salah
+            </div>
+        <?php endif; ?>
+        
+        <form method="POST" id="loginForm">
             <div class="form-group">
                 <label for="email"><i class="fas fa-envelope" style="margin-right: 5px;"></i> Alamat Email</label>
-                <input type="email" id="email" name="email" placeholder="contoh@email.com" required>
+                <input type="email" id="email" name="email" placeholder="contoh@email.com" 
+                       value="<?php echo isset($old_input['email']) ? htmlspecialchars($old_input['email']) : ''; ?>"
+                       class="<?php echo isset($errors['email']) ? 'input-error' : ''; ?>">
+                <?php if(isset($errors['email'])): ?>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $errors['email']; ?>
+                    </div>
+                <?php endif; ?>
             </div>
             
             <div class="form-group">
                 <label for="password"><i class="fas fa-lock" style="margin-right: 5px;"></i> Password</label>
                 <div class="password-container">
-                    <input type="password" id="password" name="password" placeholder="Masukkan Password Anda" minlength="7" required>
+                    <input type="password" id="password" name="password" placeholder="Masukkan password Anda" 
+                           class="<?php echo isset($errors['password']) ? 'input-error' : ''; ?>">
                     <span class="toggle-password" onclick="togglePassword('password')">
                         <i class="fas fa-eye"></i>
                     </span>
                 </div>
-                <div id="password-strength" style="font-size: 12px; margin-top: 5px; color: var(--text-light);"></div>
-            </div> 
-
+                <?php if(isset($errors['password'])): ?>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $errors['password']; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+            
             <div class="form-group" style="margin-top: 25px;">
-                <a href="../frontend/userdashboard.php"><button type="submit" class="register-btn" name="login">
-                    <i class="fas fa-user"></i> Login
-                </button></a>
-
-                <div class="login-link">
-            Belum Punya Akun? <a href="../backend/register.php"><i class="fas fa-sign-in-alt"></i> Daftar Sekarang</a>
+                <button type="submit" class="login-btn" name="login">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </div>
+        </form>
+        
+        <div class="register-link">
+            Belum punya akun? <a href="register.php"><i class="fas fa-user-plus"></i> Daftar disini</a>
         </div>
-</form>
-            <script>        // Toggle password visibility
+    </div>
+
+    <script>
+        // Toggle password visibility
         function togglePassword(fieldId) {
             const field = document.getElementById(fieldId);
-            const icon = field.nextElementSibling.querySelector('i');
+            const icon = field.parentNode.querySelector('.toggle-password i');
             
             if (field.type === "password") {
                 field.type = "text";
@@ -408,100 +409,26 @@ if(isset($_POST['login'])) {
                 icon.classList.add("fa-eye");
             }
         }
-        
-        // Password strength indicator
-        document.getElementById('password').addEventListener('input', function() {
-            const password = this.value;
-            const strengthElement = document.getElementById('password-strength');
-            
-            if (password.length === 0) {
-                strengthElement.textContent = '';
-                return;
-            }
-            
-            if (password.length < 8) {
-                strengthElement.textContent = '🔴 Lemah (minimal 8 karakter)';
-                strengthElement.style.color = 'var(--error)';
-            } else if (!/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
-                strengthElement.textContent = '🟡 Sedang (gunakan kombinasi huruf, angka, dan simbol)';
-                strengthElement.style.color = '#ff9800';
-            } else {
-                strengthElement.textContent = '🟢 Kuat - Siap mendukung lingkungan!';
-                strengthElement.style.color = 'var(--primary)';
-            }
-        });
-        // Form validation
-        document.getElementById('registerForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm-password').value;
-            const errorElement = document.getElementById('password-error');
-            
-            // Reset error state
-            errorElement.style.display = 'none';
-            document.getElementById('confirm-password').style.borderColor = '';
-            
-            if (password !== confirmPassword) {
-                errorElement.style.display = 'block';
-                document.getElementById('confirm-password').style.borderColor = 'var(--error)';
-                document.getElementById('confirm-password').focus();
-                return false;
-            }
-            
-            // Show loading state
-            const submitButton = this.querySelector('button[type="submit"]');
-            const originalText = submitButton.innerHTML;
-            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
-            submitButton.disabled = true;
-            
-            // Simulate API call
-            setTimeout(() => {
-                // Form is valid - show success message
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Pendaftaran Berhasil!',
-                    html: `
-                        <div style="text-align: left;">
-                            <p style="margin-bottom: 15px;">Selamat! Anda sekarang menjadi bagian dari gerakan lingkungan Bank Sampah Hijau Lestari.</p>
-                            <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary);">
-                                <p><strong>Nama:</strong> ${document.getElementById('nama').value}</p>
-                                <p><strong>Email:</strong> ${document.getElementById('email').value}</p>
-                                <p><strong>No. HP:</strong> ${document.getElementById('no_hp').value}</p>
-                                <p><strong>Jenis Nasabah:</strong> ${document.getElementById('jenis').options[document.getElementById('jenis').selectedIndex].text}</p>
-                            </div>
-                            <p style="margin-top: 15px; font-size: 14px;">Tim kami akan menghubungi Anda untuk informasi lebih lanjut tentang penjemputan sampah pertama Anda.</p>
-                        </div>
-                    `,
-                    confirmButtonColor: 'var(--primary)',
-                    confirmButtonText: 'Lanjut ke Dashboard',
-                    footer: '<img src="https://img.icons8.com/color/48/000000/recycle-sign.png" width="30" style="margin-right: 5px;"> Terima kasih telah peduli terhadap lingkungan!'
-                }).then(() => {
-                    // Reset form and button state
-                    this.reset();
-                    submitButton.innerHTML = originalText;
-                    submitButton.disabled = false;
-                    document.getElementById('password-strength').textContent = '';
-                    
-                    // Redirect to dashboard (simulated)
-                    window.location.href = 'dashboard.php';
-                });
-            }, 1500);
+
+        // Clear error styles on input
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', function() {
+                this.classList.remove('input-error');
+                const errorMessage = this.parentNode.parentNode.querySelector('.error-message');
+                if (errorMessage) {
+                    errorMessage.style.display = 'none';
+                }
+            });
         });
 
-        // Real-time password validation
-        document.getElementById('confirm-password').addEventListener('input', function() {
-            const password = document.getElementById('password').value;
-            const confirmPassword = this.value;
-            const errorElement = document.getElementById('password-error');
-            
-            if (password !== confirmPassword && confirmPassword !== '') {
-                errorElement.style.display = 'block';
-                this.style.borderColor = 'var(--error)';
-            } else {
-                errorElement.style.display = 'none';
-                this.style.borderColor = '';
-            }
-        });</script>
-        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        // Auto focus ke field yang error
+        document.addEventListener('DOMContentLoaded', function() {
+            <?php if(isset($errors['email'])): ?>
+                document.getElementById('email').focus();
+            <?php elseif(isset($errors['password'])): ?>
+                document.getElementById('password').focus();
+            <?php endif; ?>
+        });
+    </script>
 </body>
+</html>
