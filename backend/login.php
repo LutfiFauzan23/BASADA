@@ -22,7 +22,7 @@ if(isset($_POST['login'])) {
     
     if(empty($errors)) {
         // Cari user berdasarkan email
-        $query = mysqli_prepare($connect, "SELECT id, nama_lengkap, alamat_email, password FROM users WHERE alamat_email = ?");
+        $query = mysqli_prepare($connect, "SELECT id, nama, email, password FROM user WHERE email = ?");
         
         if($query) {
             mysqli_stmt_bind_param($query, "s", $email);
@@ -37,8 +37,8 @@ if(isset($_POST['login'])) {
                 if(password_verify($password, $hashed_password)) {
                     // Login berhasil
                     $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['nama'] = $user['nama_lengkap'];
-                    $_SESSION['alamat_email'] = $user['alamat_email'];
+                    $_SESSION['nama'] = $user['nama'];
+                    $_SESSION['alamat_email'] = $user['email'];
                     $_SESSION['logged_in'] = true;
                     
                     // Redirect langsung tanpa SweetAlert (lebih reliable)

@@ -47,10 +47,10 @@ if(isset($_POST['submit'])) {
     }
     
     // Cek apakah email sudah terdaftar (hanya jika tidak ada error email)
-    if(empty($errors['email']) && !empty($alamat_email)) {
-        $check_email = mysqli_prepare($connect, "SELECT id FROM users WHERE alamat_email = ?");
+    if(empty($errors['email']) && !empty($email)) {
+        $check_email = mysqli_prepare($connect, "SELECT id FROM users WHERE email = ?");
         if($check_email) {
-            mysqli_stmt_bind_param($check_email, "s", $alamat_email);
+            mysqli_stmt_bind_param($check_email, "s", $email);
             mysqli_stmt_execute($check_email);
             mysqli_stmt_store_result($check_email);
             
@@ -65,7 +65,7 @@ if(isset($_POST['submit'])) {
     
     // Cek apakah nomor HP sudah terdaftar (hanya jika tidak ada error no_hp)
     if(empty($errors['no_hp']) && !empty($no_hp)) {
-        $check_hp = mysqli_prepare($connect, "SELECT id FROM users WHERE nomor_telepon = ?");
+        $check_hp = mysqli_prepare($connect, "SELECT id FROM user WHERE no_hp = ?");
         if($check_hp) {
             mysqli_stmt_bind_param($check_hp, "s", $no_hp);
             mysqli_stmt_execute($check_hp);
@@ -85,7 +85,7 @@ if(isset($_POST['submit'])) {
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
         
         // Gunakan prepared statement untuk insert
-        $query = mysqli_prepare($connect, "INSERT INTO users (nama_lengkap, alamat_email, password, nomor_telepon, alamat) VALUES (?, ?, ?, ?, ?)");
+        $query = mysqli_prepare($connect, "INSERT INTO user (nama, email, password, no_hp, alamat) VALUES (?, ?, ?, ?, ?)");
         
         if($query) {
             mysqli_stmt_bind_param($query, "sssss", $nama_lengkap, $alamat_email, $password_hash, $no_hp, $alamat);
