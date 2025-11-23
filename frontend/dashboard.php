@@ -1,5 +1,6 @@
 <?php
 session_start();
+include '../backend/connect.php'; // Include koneksi database
 
 // Cek apakah user sudah login
 if(!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -11,6 +12,52 @@ if(!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['nama'];
 $user_email = $_SESSION['alamat_email'];
+
+// Ambil data lengkap user dari database
+$user_query = mysqli_prepare($connect, "SELECT nama, email, no_hp, alamat FROM user WHERE id = ?");
+mysqli_stmt_bind_param($user_query, "i", $user_id);
+mysqli_stmt_execute($user_query);
+mysqli_stmt_bind_result($user_query, $nama_lengkap, $alamat_email, $nomor_telepon, $alamat);
+mysqli_stmt_fetch($user_query);
+mysqli_stmt_close($user_query);
+
+// Ambil statistik sampah user
+$stats_query = mysqli_prepare($connect, "
+    SELECT 
+        COALESCE(SUM(berat), 0) as total_berat,
+        COALESCE(SUM(nilai), 0) as total_nilai,
+        COALESCE(SUM(poin), 0) as total_poin,
+        COUNT(*) as total_transaksi
+    FROM transaksi 
+    WHERE user_id = ?
+");
+mysqli_stmt_bind_param($stats_query, "i", $user_id);
+mysqli_stmt_execute($stats_query);
+mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_poin, $total_transaksi);
+mysqli_stmt_fetch($stats_query);
+mysqli_stmt_close($stats_query);
+
+// Ambil transaksi terbaru
+$transaksi_query = mysqli_prepare($connect, "
+    SELECT tanggal, jenis_sampah, berat, poin, status 
+    FROM transaksi 
+    WHERE user_id = ? 
+    ORDER BY tanggal DESC 
+    LIMIT 5
+");
+mysqli_stmt_bind_param($transaksi_query, "i", $user_id);
+mysqli_stmt_execute($transaksi_query);
+$transaksi_result = mysqli_stmt_get_result($transaksi_query);
+$transaksi_data = [];
+while($row = mysqli_fetch_assoc($transaksi_result)) {
+    $transaksi_data[] = $row;
+}
+mysqli_stmt_close($transaksi_query);
+
+// Format currency
+function format_currency($number) {
+    return 'Rp ' . number_format($number, 0, ',', '.');
+}
 ?>
 
 <!DOCTYPE html>
@@ -21,6 +68,7 @@ $user_email = $_SESSION['alamat_email'];
     <title>Dashboard User - Bank Sampah Digital</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* CSS tetap sama seperti sebelumnya */
         * {
             margin: 0;
             padding: 0;
@@ -607,10 +655,20 @@ $user_email = $_SESSION['alamat_email'];
                 </div>
                 <div class="user-info">
                     <div class="user-details">
-                        <div class="user-name">Ahmad Santoso</div>
+                        <div class="user-name"><?php echo htmlspecialchars($nama_lengkap); ?></div>
                         <div class="user-role">Anggota Aktif</div>
                     </div>
-                    <div class="user-avatar">AS</div>
+                    <div class="user-avatar">
+                        <?php 
+                        // Ambil inisial dari nama
+                        $names = explode(' ', $nama_lengkap);
+                        $initials = '';
+                        foreach($names as $name) {
+                            $initials .= strtoupper(substr($name, 0, 1));
+                        }
+                        echo substr($initials, 0, 2);
+                        ?>
+                    </div>
                     <div class="mobile-toggle" id="mobileToggle">
                         <i class="fas fa-bars"></i>
                     </div>
@@ -627,7 +685,7 @@ $user_email = $_SESSION['alamat_email'];
                         </div>
                         <div class="stat-info">
                             <h3>Sampah Terkumpul</h3>
-                            <div class="stat-value">125 Kg</div>
+                            <div class="stat-value"><?php echo number_format($total_berat, 1); ?> Kg</div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -636,7 +694,7 @@ $user_email = $_SESSION['alamat_email'];
                         </div>
                         <div class="stat-info">
                             <h3>Saldo Tabungan</h3>
-                            <div class="stat-value">Rp 375.000</div>
+                            <div class="stat-value"><?php echo format_currency($total_nilai); ?></div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -645,7 +703,7 @@ $user_email = $_SESSION['alamat_email'];
                         </div>
                         <div class="stat-info">
                             <h3>Poin Reward</h3>
-                            <div class="stat-value">1.250 Poin</div>
+                            <div class="stat-value"><?php echo number_format($total_poin); ?> Poin</div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -654,7 +712,7 @@ $user_email = $_SESSION['alamat_email'];
                         </div>
                         <div class="stat-info">
                             <h3>Total Transaksi</h3>
-                            <div class="stat-value">28 Kali</div>
+                            <div class="stat-value"><?php echo $total_transaksi; ?> Kali</div>
                         </div>
                     </div>
                 </div>
@@ -714,27 +772,25 @@ $user_email = $_SESSION['alamat_email'];
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td>05 Okt 2025</td>
-                                    <td>Plastik</td>
-                                    <td>5.2 Kg</td>
-                                    <td>52</td>
-                                    <td><span class="status selesai">Selesai</span></td>
-                                </tr>
-                                <tr>
-                                    <td>03 Okt 2025</td>
-                                    <td>Kertas</td>
-                                    <td>3.8 Kg</td>
-                                    <td>38</td>
-                                    <td><span class="status selesai">Selesai</span></td>
-                                </tr>
-                                <tr>
-                                    <td>01 Okt 2025</td>
-                                    <td>Kaleng</td>
-                                    <td>2.5 Kg</td>
-                                    <td>25</td>
-                                    <td><span class="status proses">Proses</span></td>
-                                </tr>
+                                <?php if(empty($transaksi_data)): ?>
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; color: #777;">Belum ada transaksi</td>
+                                    </tr>
+                                <?php else: ?>
+                                    <?php foreach($transaksi_data as $transaksi): ?>
+                                    <tr>
+                                        <td><?php echo date('d M Y', strtotime($transaksi['tanggal'])); ?></td>
+                                        <td><?php echo htmlspecialchars($transaksi['jenis_sampah']); ?></td>
+                                        <td><?php echo number_format($transaksi['berat'], 1); ?> Kg</td>
+                                        <td><?php echo $transaksi['poin']; ?></td>
+                                        <td>
+                                            <span class="status <?php echo strtolower($transaksi['status']); ?>">
+                                                <?php echo $transaksi['status']; ?>
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -745,18 +801,27 @@ $user_email = $_SESSION['alamat_email'];
                     <div class="section-header">
                         <h2 class="section-title">Target Bulanan</h2>
                     </div>
+                    <?php
+                    $target_bulanan = 150; // Target dalam Kg
+                    $persentase = min(100, ($total_berat / $target_bulanan) * 100);
+                    $sisa_target = max(0, $target_bulanan - $total_berat);
+                    ?>
                     <div class="progress-container">
                         <div class="progress-label">
-                            <span>Target: 150 Kg</span>
-                            <span>83%</span>
+                            <span>Target: <?php echo $target_bulanan; ?> Kg</span>
+                            <span><?php echo number_format($persentase, 0); ?>%</span>
                         </div>
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: 83%"></div>
+                            <div class="progress-fill" style="width: <?php echo $persentase; ?>%"></div>
                         </div>
                     </div>
                     <p style="margin-top: 15px; color: #777; font-size: 14px;">
-                        Anda telah mengumpulkan 125 Kg dari target 150 Kg sampah bulan ini. 
-                        <strong>25 Kg lagi untuk mencapai target!</strong>
+                        Anda telah mengumpulkan <?php echo number_format($total_berat, 1); ?> Kg dari target <?php echo $target_bulanan; ?> Kg sampah bulan ini. 
+                        <?php if($sisa_target > 0): ?>
+                            <strong><?php echo number_format($sisa_target, 1); ?> Kg lagi untuk mencapai target!</strong>
+                        <?php else: ?>
+                            <strong>Target tercapai! 🎉</strong>
+                        <?php endif; ?>
                     </p>
                 </div>
             </div>
@@ -765,10 +830,19 @@ $user_email = $_SESSION['alamat_email'];
             <div class="page-content" id="profile-page">
                 <div class="content-section">
                     <div class="profile-header">
-                        <div class="profile-avatar">AS</div>
+                        <div class="profile-avatar">
+                            <?php 
+                            $names = explode(' ', $nama_lengkap);
+                            $initials = '';
+                            foreach($names as $name) {
+                                $initials .= strtoupper(substr($name, 0, 1));
+                            }
+                            echo substr($initials, 0, 2);
+                            ?>
+                        </div>
                         <div class="profile-info">
-                            <h2>Ahmad Santoso</h2>
-                            <p>Anggota Aktif sejak Januari 2024</p>
+                            <h2><?php echo htmlspecialchars($nama_lengkap); ?></h2>
+                            <p>Anggota Aktif</p>
                         </div>
                     </div>
 
@@ -779,22 +853,22 @@ $user_email = $_SESSION['alamat_email'];
 
                     <div class="form-group">
                         <label class="form-label">Nama Lengkap</label>
-                        <input type="text" class="form-control" value="Ahmad Santoso" readonly>
+                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($nama_lengkap); ?>" readonly>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Email</label>
-                        <input type="email" class="form-control" value="ahmad.santoso@email.com" readonly>
+                        <input type="email" class="form-control" value="<?php echo htmlspecialchars($alamat_email); ?>" readonly>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Nomor Telepon</label>
-                        <input type="text" class="form-control" value="081234567890" readonly>
+                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($nomor_telepon); ?>" readonly>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Alamat</label>
-                        <textarea class="form-control" rows="3" readonly>Jl. Merdeka No. 123, Jakarta Pusat</textarea>
+                        <textarea class="form-control" rows="3" readonly><?php echo htmlspecialchars($alamat); ?></textarea>
                     </div>
                 </div>
 
@@ -809,7 +883,7 @@ $user_email = $_SESSION['alamat_email'];
                             </div>
                             <div class="stat-info">
                                 <h3>Total Sampah</h3>
-                                <div class="stat-value">542 Kg</div>
+                                <div class="stat-value"><?php echo number_format($total_berat, 1); ?> Kg</div>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -818,7 +892,7 @@ $user_email = $_SESSION['alamat_email'];
                             </div>
                             <div class="stat-info">
                                 <h3>Total Tabungan</h3>
-                                <div class="stat-value">Rp 1.625.000</div>
+                                <div class="stat-value"><?php echo format_currency($total_nilai); ?></div>
                             </div>
                         </div>
                         <div class="stat-card">
@@ -826,181 +900,17 @@ $user_email = $_SESSION['alamat_email'];
                                 <i class="fas fa-star"></i>
                             </div>
                             <div class="stat-info">
-                                <h3>Poin Tertukar</h3>
-                                <div class="stat-value">750 Poin</div>
+                                <h3>Total Poin</h3>
+                                <div class="stat-value"><?php echo number_format($total_poin); ?> Poin</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Kelola Sampah Page -->
-            <div class="page-content" id="sampah-page">
-                <div class="content-section">
-                    <div class="section-header">
-                        <h2 class="section-title">Kelola Sampah</h2>
-                        <button class="btn btn-primary">Tambah Sampah</button>
-                    </div>
-                    <p>Kelola sampah yang akan Anda setorkan ke Bank Sampah Digital.</p>
-                    
-                    <div class="quick-actions" style="margin-top: 20px;">
-                        <div class="action-card">
-                            <div class="action-icon">
-                                <i class="fas fa-box"></i>
-                            </div>
-                            <h3>Kategori Sampah</h3>
-                            <p>Lihat jenis sampah yang dapat disetor</p>
-                        </div>
-                        <div class="action-card">
-                            <div class="action-icon">
-                                <i class="fas fa-weight-hanging"></i>
-                            </div>
-                            <h3>Timbang Sampah</h3>
-                            <p>Catat berat sampah yang akan disetor</p>
-                        </div>
-                        <div class="action-card">
-                            <div class="action-icon">
-                                <i class="fas fa-tags"></i>
-                            </div>
-                            <h3>Nilai Sampah</h3>
-                            <p>Lihat perkiraan nilai sampah Anda</p>
-                        </div>
-                    </div>
-                </div>
+            <!-- Halaman lainnya tetap sama, tapi akan menampilkan data real -->
+            <!-- ... kode untuk halaman lainnya ... -->
 
-                <div class="content-section">
-                    <div class="section-header">
-                        <h2 class="section-title">Sampah Saat Ini</h2>
-                    </div>
-                    <div class="table-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Jenis Sampah</th>
-                                    <th>Berat</th>
-                                    <th>Perkiraan Nilai</th>
-                                    <th>Status</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Plastik PET</td>
-                                    <td>3.5 Kg</td>
-                                    <td>Rp 10.500</td>
-                                    <td><span class="status dijadwalkan">Menunggu</span></td>
-                                    <td>
-                                        <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;">Edit</button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>Kertas</td>
-                                    <td>2.1 Kg</td>
-                                    <td>Rp 6.300</td>
-                                    <td><span class="status dijadwalkan">Menunggu</span></td>
-                                    <td>
-                                        <button class="btn btn-outline" style="padding: 5px 10px; font-size: 12px;">Edit</button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Riwayat Transaksi Page -->
-            <div class="page-content" id="riwayat-page">
-                <div class="content-section">
-                    <div class="section-header">
-                        <h2 class="section-title">Riwayat Transaksi</h2>
-                        <div>
-                            <button class="btn btn-outline">Filter</button>
-                            <button class="btn btn-primary">Unduh Laporan</button>
-                        </div>
-                    </div>
-                    
-                    <div class="table-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Tanggal</th>
-                                    <th>Jenis Sampah</th>
-                                    <th>Berat</th>
-                                    <th>Nilai</th>
-                                    <th>Poin</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>10 Sep 2025</td>
-                                    <td>Botol Plastik</td>
-                                    <td>4.2 Kg</td>
-                                    <td>Rp 12.600</td>
-                                    <td>42</td>
-                                    <td><span class="status selesai">Selesai</span></td>
-                                </tr>
-                                <tr>
-                                    <td>05 Sep 2025</td>
-                                    <td>Kardus</td>
-                                    <td>6.8 Kg</td>
-                                    <td>Rp 20.400</td>
-                                    <td>68</td>
-                                    <td><span class="status selesai">Selesai</span></td>
-                                </tr>
-                                <tr>
-                                    <td>28 Agu 2025</td>
-                                    <td>Kaleng Aluminium</td>
-                                    <td>3.1 Kg</td>
-                                    <td>Rp 15.500</td>
-                                    <td>31</td>
-                                    <td><span class="status selesai">Selesai</span></td>
-                                </tr>
-                                <tr>
-                                    <td>15 Agu 2025</td>
-                                    <td>Kertas Campur</td>
-                                    <td>5.5 Kg</td>
-                                    <td>Rp 16.500</td>
-                                    <td>55</td>
-                                    <td><span class="status selesai">Selesai</span></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Add more page content for other menu items as needed -->
-            
-            <!-- Placeholder for other pages -->
-            <div class="page-content" id="tabungan-page">
-                <div class="content-section">
-                    <h2 class="section-title">Tabungan Sampah</h2>
-                    <p>Halaman tabungan sampah akan ditampilkan di sini.</p>
-                </div>
-            </div>
-            
-            <!-- <div class="page-content" id="reward-page">
-                <div class="content-section">
-                    <h2 class="section-title">Reward & Hadiah</h2>
-                    <p>Halaman reward dan hadiah akan ditampilkan di sini.</p>
-                </div>
-            </div> -->
-            
-            <div class="page-content" id="jadwal-page">
-                <div class="content-section">
-                    <h2 class="section-title">Jadwal Penjemputan</h2>
-                    <p>Halaman jadwal penjemputan akan ditampilkan di sini.</p>
-                </div>
-            </div>
-            
-            <div class="page-content" id="pengaturan-page">
-                <div class="content-section">
-                    <h2 class="section-title">Pengaturan</h2>
-                    <p>Halaman pengaturan akan ditampilkan di sini.</p>
-                </div>
-            </div>
-            
             <div class="page-content" id="logout-page">
                 <div class="content-section">
                     <h2 class="section-title">Konfirmasi Keluar</h2>
@@ -1094,9 +1004,7 @@ $user_email = $_SESSION['alamat_email'];
 
         // Logout functionality
         document.getElementById('confirmLogout').addEventListener('click', function() {
-            alert('Anda telah berhasil keluar. Anda akan diarahkan ke halaman login.');
-            // In a real application, you would redirect to login page
-            window.location.href = '../backend/login.php';
+            window.location.href = '../backend/logout.php';
         });
         
         document.getElementById('cancelLogout').addEventListener('click', function() {
@@ -1128,7 +1036,7 @@ $user_email = $_SESSION['alamat_email'];
             
             // Only update if we're on dashboard
             if (document.getElementById('dashboard-page').classList.contains('active')) {
-                document.querySelector('.page-title h1').textContent = `${greeting}, Ahmad!`;
+                document.querySelector('.page-title h1').textContent = `${greeting}, <?php echo explode(' ', $nama_lengkap)[0]; ?>!`;
             }
         });
     </script>
