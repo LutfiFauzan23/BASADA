@@ -1,9 +1,16 @@
 <?php
-    session_start();
+session_start();
 
-    if(!isset($_SESSION['users'])) { 
-        header('location:login.php');
-    }
+// Cek apakah user sudah login
+if(!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header('Location: ../backend/login.php');
+    exit;
+}
+
+// Ambil data user dari session
+$user_id = $_SESSION['user_id'];
+$user_name = $_SESSION['nama'];
+$user_email = $_SESSION['alamat_email'];
 ?>
 
 <!DOCTYPE html>
