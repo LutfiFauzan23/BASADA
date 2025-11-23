@@ -68,7 +68,7 @@ function format_currency($number) {
     <title>Dashboard User - Bank Sampah Digital</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* CSS tetap sama seperti sebelumnya */
+
         * {
             margin: 0;
             padding: 0;
@@ -655,13 +655,13 @@ function format_currency($number) {
                 </div>
                 <div class="user-info">
                     <div class="user-details">
-                        <div class="user-name"><?php echo htmlspecialchars($nama_lengkap); ?></div>
+                        <div class="user-name"><?php echo htmlspecialchars($nama); ?></div>
                         <div class="user-role">Anggota Aktif</div>
                     </div>
                     <div class="user-avatar">
                         <?php 
                         // Ambil inisial dari nama
-                        $names = explode(' ', $nama_lengkap);
+                        $names = explode(' ', $nama);
                         $initials = '';
                         foreach($names as $name) {
                             $initials .= strtoupper(substr($name, 0, 1));
@@ -853,17 +853,17 @@ function format_currency($number) {
 
                     <div class="form-group">
                         <label class="form-label">Nama Lengkap</label>
-                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($nama_lengkap); ?>" readonly>
+                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($nama); ?>" readonly>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Email</label>
-                        <input type="email" class="form-control" value="<?php echo htmlspecialchars($alamat_email); ?>" readonly>
+                        <input type="email" class="form-control" value="<?php echo htmlspecialchars($email); ?>" readonly>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Nomor Telepon</label>
-                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($nomor_telepon); ?>" readonly>
+                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($no_hp); ?>" readonly>
                     </div>
 
                     <div class="form-group">
@@ -908,8 +908,6 @@ function format_currency($number) {
                 </div>
             </div>
 
-            <!-- Halaman lainnya tetap sama, tapi akan menampilkan data real -->
-            <!-- ... kode untuk halaman lainnya ... -->
 
             <div class="page-content" id="logout-page">
                 <div class="content-section">
