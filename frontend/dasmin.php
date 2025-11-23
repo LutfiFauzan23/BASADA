@@ -1,3 +1,27 @@
+<?php
+session_start();
+
+// Cek login
+if(!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header('Location: ../backend/login.php');
+    exit;
+}
+
+// Definisikan email admin
+$admin_emails = ['basada964@gmail.com'];
+
+// Cek apakah user adalah admin berdasarkan email
+if(!in_array($_SESSION['alamat_email'], $admin_emails)) {
+    // Jika bukan admin, redirect ke dashboard biasa
+    header('Location: dashboard.php');
+    exit;
+}
+
+$user_name = $_SESSION['nama'];
+$user_email = $_SESSION['alamat_email'];
+
+?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>

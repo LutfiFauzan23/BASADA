@@ -37,14 +37,18 @@ if(isset($_POST['login'])) {
                 if(password_verify($password, $hashed_password)) {
                     // Login berhasil
                     $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['nama'] = $user['nama'];
+                    $_SESSION['nama'] = $user['nama'];  
                     $_SESSION['alamat_email'] = $user['email'];
                     $_SESSION['logged_in'] = true;
                     
                     // Redirect langsung tanpa SweetAlert (lebih reliable)
-                    header("Location: ../frontend/dashboard.php");
-                    exit;
+                if ($email == 'basada964@gmail.com') {
+                     header("Location: ../frontend/dasmin.php");
                 } else {
+                    header("Location: ../frontend/dashboard.php");
+                }
+                exit;
+                    } else {
                     $errors['password'] = "Password salah";
                 }
             } else {

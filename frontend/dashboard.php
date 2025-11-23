@@ -26,13 +26,14 @@ $stats_query = mysqli_prepare($connect, "
     SELECT 
         COALESCE(SUM(berat), 0) as berat,
         COALESCE(SUM(harga_per_kg), 0) as harga_per_kg,
+        COALESCE(SUM(harga_per_kg), 0) as harga_per_kg,
         COUNT(*) as total
     FROM transaksi_sampah
     WHERE id_anggota = ?
 ");
 mysqli_stmt_bind_param($stats_query, "i", $user_id);
 mysqli_stmt_execute($stats_query);
-mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_transaksi);
+mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_poin, $total_transaksi);
 mysqli_stmt_fetch($stats_query);
 mysqli_stmt_close($stats_query);
 
@@ -1140,7 +1141,7 @@ function get_initials($name) {
                         <div class="stat-icon">
                             <i class="fas fa-gift"></i>
                         </div>
-                        <div class="stat-value">3</div>
+                        <div class="stat-value">0</div>
                         <div class="stat-label">Reward Ditukar</div>
                     </div>
                     <div class="stat-card">
