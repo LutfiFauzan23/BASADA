@@ -25,8 +25,8 @@ mysqli_stmt_close($user_query);
 $stats_query = mysqli_prepare($connect, "
     SELECT 
         COALESCE(SUM(berat), 0) as berat,
-        COALESCE(SUM(harga_per_kg), 0) as harga_per_kg,
-        COALESCE(SUM(harga_per_kg), 0) as harga_per_kg,
+        COALESCE(SUM(harga_per_kg * berat), 0) as total_nilai,
+        COALESCE(SUM(berat * 10), 0) as total_poin,  -- Asumsi 1kg = 10 poin
         COUNT(*) as total
     FROM transaksi_sampah
     WHERE id_anggota = ?
@@ -50,6 +50,8 @@ mysqli_stmt_execute($transaksi_query);
 $transaksi_result = mysqli_stmt_get_result($transaksi_query);
 $transaksi_data = [];
 while($row = mysqli_fetch_assoc($transaksi_result)) {
+    // Tambahkan poin berdasarkan berat (1kg = 10 poin)
+    $row['poin'] = $row['berat'] * 10;
     $transaksi_data[] = $row;
 }
 mysqli_stmt_close($transaksi_query);
@@ -69,7 +71,6 @@ function get_initials($name) {
     return substr($initials, 0, 2);
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -604,6 +605,188 @@ function get_initials($name) {
             100% { opacity: 1; }
         }
 
+        /* File Upload Styles */
+        .file-upload {
+            border: 2px dashed var(--gray);
+            border-radius: var(--radius);
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-bottom: 15px;
+        }
+
+        .file-upload:hover {
+            border-color: var(--primary);
+            background-color: rgba(46, 125, 50, 0.05);
+        }
+
+        .file-upload i {
+            font-size: 3rem;
+            color: var(--primary-light);
+            margin-bottom: 15px;
+        }
+
+        .file-upload p {
+            margin-bottom: 10px;
+            color: var(--dark-gray);
+        }
+
+        .file-upload small {
+            color: var(--dark-gray);
+        }
+
+        .file-preview {
+            margin-top: 15px;
+            display: none;
+            text-align: center;
+        }
+
+        .file-preview img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: var(--radius);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: white;
+            border-radius: var(--radius);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px 25px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            color: var(--primary);
+            font-size: 1.3rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--dark-gray);
+            transition: var(--transition);
+        }
+
+        .modal-close:hover {
+            color: var(--primary);
+        }
+
+        .modal-body {
+            padding: 20px 25px;
+        }
+
+        .modal-footer {
+            padding: 15px 25px 25px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            border-top: 1px solid var(--gray);
+        }
+
+        /* Additional form styles */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--primary);
+            color: white;
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: var(--transition);
+            font-size: 0.9rem;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast i {
+            font-size: 1.1rem;
+        }
+
+        /* Monthly Stats Styles */
+        .monthly-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .month-stat-card {
+            background: white;
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            border-left: 4px solid var(--primary);
+        }
+
+        .month-stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin: 10px 0;
+        }
+
+        .month-stat-label {
+            color: var(--dark-gray);
+            font-size: 0.9rem;
+        }
+
+        .month-stat-period {
+            font-size: 0.8rem;
+            color: var(--dark-gray);
+            margin-top: 5px;
+        }
+
         /* Responsive Styles */
         @media (max-width: 992px) {
             .nav-links {
@@ -663,6 +846,10 @@ function get_initials($name) {
                 flex-direction: column;
                 text-align: center;
             }
+            
+            .monthly-stats {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 576px) {
@@ -690,35 +877,10 @@ function get_initials($name) {
             .quick-actions {
                 grid-template-columns: 1fr;
             }
-        }
-
-        /* Toast Notification */
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background-color: var(--primary);
-            color: white;
-            padding: 12px 20px;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            z-index: 3000;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transform: translateY(100px);
-            opacity: 0;
-            transition: var(--transition);
-            font-size: 0.9rem;
-        }
-
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .toast i {
-            font-size: 1.1rem;
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -734,7 +896,7 @@ function get_initials($name) {
                 <a href="#" class="nav-link active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
                 <a href="#" class="nav-link" data-tab="profile"><i class="fas fa-user"></i> Profil Saya</a>
                 <a href="#" class="nav-link" data-tab="transaksi"><i class="fas fa-exchange-alt"></i> Transaksi</a>
-                <a href="#" class="nav-link" data-tab="tabungan"><i class="fas fa-wallet"></i> Tabungan</a>
+                <a href="#" class="nav-link" data-tab="history"><i class="fas fa-chart-line"></i> History Poin</a>
                 <a href="#" class="nav-link" data-tab="reward"><i class="fas fa-gift"></i> Reward</a>
             </div>
             
@@ -1043,45 +1205,50 @@ function get_initials($name) {
             </div>
         </div>
 
-        <!-- Tabungan Tab -->
-        <div class="tab-content" id="tabunganTab">
+        <!-- History Poin Tab -->
+        <div class="tab-content" id="historyTab">
             <div class="card">
                 <div class="section-title">
-                    <h3>Ringkasan Tabungan</h3>
+                    <h3>Ringkasan History Poin</h3>
                     <div class="btn-group">
                         <button class="btn btn-outline btn-sm active" data-period="month">Bulan Ini</button>
-                        <button class="btn btn-outline btn-sm" data-period="quarter">Kuartal Ini</button>
-                        <button class="btn btn-outline btn-sm" data-period="year">Tahun Ini</button>
+                        <button class="btn btn-outline btn-sm" data-period="quarter">3 Bulan</button>
+                        <button class="btn btn-outline btn-sm" data-period="year">1 Tahun</button>
                     </div>
                 </div>
-                <div class="stats-container">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-money-bill-wave"></i>
-                        </div>
-                        <div class="stat-value"><?php echo format_currency($total_nilai * 0.3); ?></div>
-                        <div class="stat-label">Tabungan Bulan Ini</div>
-                    </div>
-                    <div class="stat-card">
+                
+                <!-- Statistik Bulanan -->
+                <div class="monthly-stats">
+                    <div class="month-stat-card">
                         <div class="stat-icon">
                             <i class="fas fa-weight-hanging"></i>
                         </div>
-                        <div class="stat-value"><?php echo number_format($total_berat * 0.3, 1); ?> kg</div>
-                        <div class="stat-label">Sampah Bulan Ini</div>
+                        <div class="month-stat-value"><?php echo number_format($total_berat * 0.3, 1); ?> kg</div>
+                        <div class="month-stat-label">Total Sampah Bulan Ini</div>
+                        <div class="month-stat-period">Juni 2023</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="month-stat-card">
                         <div class="stat-icon">
-                            <i class="fas fa-chart-line"></i>
+                            <i class="fas fa-star"></i>
                         </div>
-                        <div class="stat-value">+8%</div>
-                        <div class="stat-label">Pertumbuhan</div>
+                        <div class="month-stat-value"><?php echo number_format($total_poin * 0.3); ?></div>
+                        <div class="month-stat-label">Total Poin Bulan Ini</div>
+                        <div class="month-stat-period">Juni 2023</div>
+                    </div>
+                    <div class="month-stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div class="month-stat-value">6</div>
+                        <div class="month-stat-label">Transaksi Bulan Ini</div>
+                        <div class="month-stat-period">Juni 2023</div>
                     </div>
                 </div>
             </div>
 
             <div class="card">
                 <div class="section-title">
-                    <h3>Riwayat Tabungan</h3>
+                    <h3>Riwayat Poin & Kilogram per Bulan</h3>
                 </div>
                 <div class="table-container">
                     <table>
@@ -1089,35 +1256,74 @@ function get_initials($name) {
                             <tr>
                                 <th>Bulan</th>
                                 <th>Total Sampah (kg)</th>
-                                <th>Tabungan (Rp)</th>
+                                <th>Total Poin</th>
+                                <th>Jumlah Transaksi</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Juni 2023</td>
+                                <td><strong>Juni 2023</strong></td>
                                 <td><?php echo number_format($total_berat * 0.3, 1); ?></td>
-                                <td><?php echo format_currency($total_nilai * 0.3); ?></td>
+                                <td><?php echo number_format($total_poin * 0.3); ?></td>
+                                <td>6</td>
                                 <td><span class="badge badge-success">Aktif</span></td>
                             </tr>
                             <tr>
                                 <td>Mei 2023</td>
                                 <td>28.5</td>
-                                <td>Rp 85.500</td>
-                                <td><span class="badge badge-success">Aktif</span></td>
+                                <td>285</td>
+                                <td>5</td>
+                                <td><span class="badge badge-success">Selesai</span></td>
                             </tr>
                             <tr>
                                 <td>April 2023</td>
-                                <td>32.1</td>
-                                <td>Rp 96.300</td>
-                                <td><span class="badge badge-success">Aktif</span></td>
+                                <td>26.3</td>
+                                <td>263</td>
+                                <td>4</td>
+                                <td><span class="badge badge-success">Selesai</span></td>
+                            </tr>
+                            <tr>
+                                <td>Maret 2023</td>
+                                <td>27.7</td>
+                                <td>277</td>
+                                <td>5</td>
+                                <td><span class="badge badge-success">Selesai</span></td>
+                            </tr>
+                            <tr>
+                                <td>Februari 2023</td>
+                                <td>24.1</td>
+                                <td>241</td>
+                                <td>4</td>
+                                <td><span class="badge badge-success">Selesai</span></td>
+                            </tr>
+                            <tr>
+                                <td>Januari 2023</td>
+                                <td>23.4</td>
+                                <td>234</td>
+                                <td>4</td>
+                                <td><span class="badge badge-success">Selesai</span></td>
+                            </tr>
+                            <tr>
+                                <td>Desember 2022</td>
+                                <td>25.8</td>
+                                <td>258</td>
+                                <td>5</td>
+                                <td><span class="badge badge-success">Selesai</span></td>
+                            </tr>
+                            <tr>
+                                <td>November 2022</td>
+                                <td>22.9</td>
+                                <td>229</td>
+                                <td>4</td>
+                                <td><span class="badge badge-success">Selesai</span></td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
 
+           
         <!-- Reward Tab -->
         <div class="tab-content" id="rewardTab">
             <div class="card">
@@ -1192,6 +1398,63 @@ function get_initials($name) {
         </div>
     </main>
 
+    <!-- Modal Jadwal Penjemputan -->
+    <div class="modal" id="pickupModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Jadwalkan Penjemputan Sampah</h3>
+                <button class="modal-close" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="pickupForm">
+                    <div class="form-group">
+                        <label for="jenis_sampah">Jenis Sampah</label>
+                        <select class="form-control" id="jenis_sampah" name="jenis_sampah" required>
+                            <option value="">Pilih Jenis Sampah</option>
+                            <option value="Plastik">Plastik</option>
+                            <option value="Logam">Logam</option>
+                            <option value="Organik">Organik</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="alamat_jemput">Alamat Penjemputan</label>
+                        <textarea class="form-control" id="alamat_jemput" name="alamat_jemput" rows="3" required placeholder="Masukkan alamat lengkap penjemputan sampah"><?php echo htmlspecialchars($alamat); ?></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="foto_sampah">Foto Sampah</label>
+                        <div class="file-upload" id="fileUploadArea">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Klik atau seret gambar ke sini</p>
+                            <small>Format yang didukung: JPG, PNG (Maks. 5MB)</small>
+                            <input type="file" id="foto_sampah" name="foto_sampah" accept="image/*" style="display: none;">
+                        </div>
+                        <div class="file-preview" id="filePreview">
+                            <img id="previewImage" src="" alt="Preview Foto Sampah">
+                            <button type="button" class="btn btn-outline btn-sm" id="removeImage" style="margin-top: 10px;">
+                                <i class="fas fa-trash"></i> Hapus Gambar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="catatan">Catatan (Opsional)</label>
+                        <textarea class="form-control" id="catatan" name="catatan" rows="2" placeholder="Tambahkan catatan jika diperlukan..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="cancelPickup">Batal</button>
+                <button class="btn btn-primary" id="submitPickup">
+                    <i class="fas fa-paper-plane"></i> Ajukan Penjemputan
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
         <i class="fas fa-check-circle"></i>
@@ -1218,6 +1481,18 @@ function get_initials($name) {
         const viewHistoryBtn = document.getElementById('viewHistory');
         const redeemPointsBtn = document.getElementById('redeemPoints');
         const monthlyReportBtn = document.getElementById('monthlyReport');
+
+        // Modal elements
+        const pickupModal = document.getElementById('pickupModal');
+        const closeModal = document.getElementById('closeModal');
+        const cancelPickup = document.getElementById('cancelPickup');
+        const submitPickup = document.getElementById('submitPickup');
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const fileInput = document.getElementById('foto_sampah');
+        const filePreview = document.getElementById('filePreview');
+        const previewImage = document.getElementById('previewImage');
+        const removeImageBtn = document.getElementById('removeImage');
+        const pickupForm = document.getElementById('pickupForm');
 
         // Initialize the application
         function init() {
@@ -1276,9 +1551,7 @@ function get_initials($name) {
             });
             
             // Quick actions
-            schedulePickupBtn.addEventListener('click', () => {
-                showToast('Jadwal penjemputan berhasil dibuat');
-            });
+            schedulePickupBtn.addEventListener('click', openPickupModal);
             
             viewHistoryBtn.addEventListener('click', () => {
                 switchTab('transaksi');
@@ -1289,8 +1562,141 @@ function get_initials($name) {
             });
             
             monthlyReportBtn.addEventListener('click', () => {
-                showToast('Laporan bulanan berhasil di-generate');
+                switchTab('history');
             });
+            
+            // Modal events
+            closeModal.addEventListener('click', closePickupModal);
+            cancelPickup.addEventListener('click', closePickupModal);
+            submitPickup.addEventListener('click', submitPickupForm);
+            
+            // File upload handling
+            fileUploadArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // Remove image button
+            removeImageBtn.addEventListener('click', removeImage);
+            
+            // Drag and drop for file upload
+            fileUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                fileUploadArea.style.borderColor = 'var(--primary)';
+                fileUploadArea.style.backgroundColor = 'rgba(46, 125, 50, 0.1)';
+            });
+            
+            fileUploadArea.addEventListener('dragleave', () => {
+                fileUploadArea.style.borderColor = 'var(--gray)';
+                fileUploadArea.style.backgroundColor = '';
+            });
+            
+            fileUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                fileUploadArea.style.borderColor = 'var(--gray)';
+                fileUploadArea.style.backgroundColor = '';
+                
+                if (e.dataTransfer.files.length) {
+                    fileInput.files = e.dataTransfer.files;
+                    handleFileSelect(e);
+                }
+            });
+
+            // Filter periode untuk history poin
+            document.querySelectorAll('[data-period]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // Hapus active class dari semua button
+                    document.querySelectorAll('[data-period]').forEach(b => {
+                        b.classList.remove('active');
+                    });
+                    // Tambah active class ke button yang diklik
+                    this.classList.add('active');
+                    
+                    const period = this.getAttribute('data-period');
+                    filterHistoryByPeriod(period);
+                });
+            });
+        }
+
+        // Filter history berdasarkan periode
+        function filterHistoryByPeriod(period) {
+            let message = '';
+            switch(period) {
+                case 'month':
+                    message = 'Menampilkan data bulan ini';
+                    break;
+                case 'quarter':
+                    message = 'Menampilkan data 3 bulan terakhir';
+                    break;
+                case 'year':
+                    message = 'Menampilkan data 1 tahun terakhir';
+                    break;
+            }
+            showToast(message);
+        }
+
+        // Handle file selection for image preview
+        function handleFileSelect(e) {
+            const file = fileInput.files[0];
+            
+            if (file) {
+                // Check file type
+                if (!file.type.match('image.*')) {
+                    showToast('Hanya file gambar yang diizinkan', 'error');
+                    return;
+                }
+                
+                // Check file size (5MB max)
+                if (file.size > 5 * 1024 * 1024) {
+                    showToast('Ukuran file maksimal 5MB', 'error');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                    filePreview.style.display = 'block';
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Remove image preview
+        function removeImage() {
+            fileInput.value = '';
+            filePreview.style.display = 'none';
+            showToast('Gambar berhasil dihapus');
+        }
+
+        // Open pickup modal
+        function openPickupModal() {
+            pickupModal.classList.add('active');
+        }
+
+        // Close pickup modal
+        function closePickupModal() {
+            pickupModal.classList.remove('active');
+            // Reset form
+            pickupForm.reset();
+            filePreview.style.display = 'none';
+        }
+
+        // Submit pickup form
+        function submitPickupForm() {
+            const jenisSampah = document.getElementById('jenis_sampah').value;
+            const alamatJemput = document.getElementById('alamat_jemput').value;
+            
+            if (!jenisSampah || !alamatJemput) {
+                showToast('Harap lengkapi semua field yang wajib diisi', 'error');
+                return;
+            }
+            
+            // Simulate form submission
+            showToast('Jadwal penjemputan berhasil diajukan!');
+            closePickupModal();
         }
 
         // Handle scroll for navbar effect
