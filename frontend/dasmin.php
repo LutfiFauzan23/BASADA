@@ -914,7 +914,7 @@ function getMonthName($monthNumber) {
                                     <td><?php echo htmlspecialchars($member['nama']); ?></td>
                                     <td><?php echo htmlspecialchars($member['email']); ?></td>
                                     <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
-                                    <td><span class="badge badge-success"><?php echo $member['status'] === 'active' ? 'Aktif' : 'Nonaktif'; ?></span></td>
+                                    <td><span class="badge badge-success"><?php echo $member['status'] === 'active' ? 'Aktif' : 'Tidak Aktif'; ?></span></td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -1181,7 +1181,7 @@ function getMonthName($monthNumber) {
             </div>
         </div>
 
-        <!-- Database Tab -->
+        Database Tab
         <div class="tab-content" id="databaseTab">
             <div class="card">
                 <div class="section-title">
@@ -1565,33 +1565,54 @@ function getMonthName($monthNumber) {
         }
 
         // Delete member
+        // Delete member dengan debugging
         function deleteMember(id) {
             if (confirm('Apakah Anda yakin ingin menghapus anggota ini?')) {
-                // AJAX request untuk menghapus anggota
-                fetch('delete_member.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `id=${id}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Anggota berhasil dihapus');
-                        setTimeout(() => {
-                            location.reload(); // Reload untuk update data terbaru
-                        }, 1000);
-                    } else {
-                        showToast('Gagal menghapus anggota: ' + data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showToast('Terjadi kesalahan saat menghapus anggota', 'error');
-                });
+            console.log('Attempting to delete member with ID:', id);
+        
+        // Show loading state
+        const deleteBtn = document.querySelector(`.delete-member-btn[data-id="${id}"]`);
+        const originalText = deleteBtn.innerHTML;
+        deleteBtn.innerHTML = '<div class="loading"></div>';
+        deleteBtn.disabled = true;
+
+        // AJAX request untuk menghapus anggota
+        fetch('delete_member.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `id=${id}`
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            
+            if (data.success) {
+                showToast('Anggota berhasil dihapus');
+                // Refresh the page after a short delay
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showToast('Gagal menghapus anggota: ' + data.message, 'error');
+                // Restore button
+                deleteBtn.innerHTML = originalText;
+                deleteBtn.disabled = false;
             }
-        }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            showToast('Terjadi kesalahan saat menghapus anggota', 'error');
+            // Restore button
+            deleteBtn.innerHTML = originalText;
+            deleteBtn.disabled = false;
+        });
+    }
+}
 
         // Open edit modal
         function openEditModal(id) {
