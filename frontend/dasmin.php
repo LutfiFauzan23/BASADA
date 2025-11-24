@@ -1,5 +1,6 @@
 <?php
 session_start();
+include "../backend/connect.php";
 
 // Cek login
 if(!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
@@ -8,7 +9,7 @@ if(!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
 }
 
 // Definisikan email admin
-$admin_emails = ['basada964@gmail.com'];
+$admin_emails = ['basada964@gmail.com', 'admin@basada.com', 'lutpifauzan23@gmail.com'];
 
 // Cek apakah user adalah admin berdasarkan email
 if(!in_array($_SESSION['alamat_email'], $admin_emails)) {
@@ -20,6 +21,157 @@ if(!in_array($_SESSION['alamat_email'], $admin_emails)) {
 $user_name = $_SESSION['nama'];
 $user_email = $_SESSION['alamat_email'];
 
+// Fungsi untuk mengambil data dari database
+function getTotalMembers($connect) {
+    $query = "SELECT COUNT(*) as total FROM user";
+    $result = mysqli_query($connect, $query);
+    $row = mysqli_fetch_assoc($result);
+    return $row['total'];
+}
+
+function getTotalWaste($connect) {
+    $query = "SELECT SUM(berat) as total FROM transaksi_sampah";
+    $result = mysqli_query($connect, $query);
+    $row = mysqli_fetch_assoc($result);
+    return $row['total'] ? $row['total'] : 0;
+}
+
+function getTotalIncome($connect) {
+    $query = "SELECT SUM(total) as total FROM transaksi_sampah";
+    $result = mysqli_query($connect, $query);
+    $row = mysqli_fetch_assoc($result);
+    return $row['total'] ? $row['total'] : 0;
+}
+
+function getActiveMembers($connect) {
+    $query = "SELECT COUNT(*) as total FROM user WHERE status = 'active'";
+    $result = mysqli_query($connect, $query);
+    $row = mysqli_fetch_assoc($result);
+    return $row['total'];
+}
+
+function getRecentMembers($connect, $limit = 5) {
+    $query = "SELECT id, nama, email, tanggal_daftar, status FROM user ORDER BY tanggal_daftar DESC LIMIT $limit";
+    $result = mysqli_query($connect, $query);
+    $members = [];
+    while($row = mysqli_fetch_assoc($result)) {
+        $members[] = $row;
+    }
+    return $members;
+}
+
+function getAllMembers($connect) {
+    $query = "SELECT id, nama, email, tanggal_daftar, status FROM user ORDER BY tanggal_daftar DESC";
+    $result = mysqli_query($connect, $query);
+    $members = [];
+    while($row = mysqli_fetch_assoc($result)) {
+        $members[] = $row;
+    }
+    return $members;
+}
+
+function getWasteData($connect, $limit = 5) {
+    $query = "SELECT ts.id, ts.tanggal, u.nama, ts.jenis_sampah, ts.berat, ts.harga_per_kg, ts.total
+              FROM transaksi_sampah ts 
+              JOIN user u ON ts.id_anggota = u.id 
+              ORDER BY ts.tanggal DESC 
+              LIMIT $limit";
+    $result = mysqli_query($connect, $query);
+    $waste = [];
+    while($row = mysqli_fetch_assoc($result)) {
+        $waste[] = $row;
+    }
+    return $waste;
+}
+
+function getAllWasteData($connect) {
+    $query = "SELECT ts.id, ts.tanggal, u.nama, ts.jenis_sampah, ts.berat, ts.harga_per_kg, ts.total
+              FROM transaksi_sampah ts 
+              JOIN user u ON ts.id_anggota = u.id 
+              ORDER BY ts.tanggal DESC";
+    $result = mysqli_query($connect, $query);
+    $waste = [];
+    while($row = mysqli_fetch_assoc($result)) {
+        $waste[] = $row;
+    }
+    return $waste;
+}
+
+function getWastePrices($connect) {
+    $query = "SELECT id, jenis_sampah, harga, status FROM harga_sampah";
+    $result = mysqli_query($connect, $query);
+    $prices = [];
+    while($row = mysqli_fetch_assoc($result)) {
+        $prices[] = $row;
+    }
+    return $prices;
+}
+
+function getIncomeData($connect) {
+    $query = "SELECT 
+                bulan,
+                total_berat,
+                total_pendapatan,
+                status_pembayaran
+              FROM pendapatan_bulanan 
+              ORDER BY tahun DESC, bulan DESC";
+    $result = mysqli_query($connect, $query);
+    $income = [];
+    while($row = mysqli_fetch_assoc($result)) {
+        $income[] = $row;
+    }
+    return $income;
+}
+
+// Ambil data dari database
+$totalMembers = getTotalMembers($connect);
+$totalWaste = getTotalWaste($connect);
+$totalIncome = getTotalIncome($connect);
+$activeMembers = getActiveMembers($connect);
+$recentMembers = getRecentMembers($connect);
+$allMembers = getAllMembers($connect);
+$recentWaste = getWasteData($connect);
+$allWasteData = getAllWasteData($connect);
+$wastePrices = getWastePrices($connect);
+$incomeData = getIncomeData($connect);
+
+// Hitung statistik bulanan
+$monthIncome = 0;
+$monthWaste = 0;
+$currentMonth = date('m');
+$currentYear = date('Y');
+
+$monthQuery = "SELECT SUM(total) as pendapatan, SUM(berat) as sampah 
+               FROM transaksi_sampah 
+               WHERE MONTH(tanggal) = $currentMonth AND YEAR(tanggal) = $currentYear";
+$monthResult = mysqli_query($connect, $monthQuery);
+if($monthRow = mysqli_fetch_assoc($monthResult)) {
+    $monthIncome = $monthRow['pendapatan'] ? $monthRow['pendapatan'] : 0;
+    $monthWaste = $monthRow['sampah'] ? $monthRow['sampah'] : 0;
+}
+
+// Format angka untuk display
+function formatRupiah($angka) {
+    if ($angka >= 1000000) {
+        return number_format($angka / 1000000, 1) . ' JT';
+    } elseif ($angka >= 1000) {
+        return number_format($angka / 1000, 1) . ' RB';
+    }
+    return number_format($angka);
+}
+
+function formatWeight($berat) {
+    return number_format($berat, 1) . ' kg';
+}
+
+// Konversi nama bulan
+function getMonthName($monthNumber) {
+    $months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return $months[$monthNumber - 1] ?? $monthNumber;
+}
 ?>
 
 <!DOCTYPE html>
@@ -678,6 +830,9 @@ $user_email = $_SESSION['alamat_email'];
             </div>
             
             <div class="nav-right">
+                <div class="user-info" style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 0.9rem;">Halo, <?php echo htmlspecialchars($user_name); ?></span>
+                </div>
                 <button class="mobile-menu-btn" id="mobileMenuBtn">
                     <i class="fas fa-bars"></i>
                 </button>
@@ -704,28 +859,28 @@ $user_email = $_SESSION['alamat_email'];
                     <div class="stat-icon">
                         <i class="fas fa-users"></i>
                     </div>
-                    <div class="stat-value" id="totalMembers">127</div>
+                    <div class="stat-value" id="totalMembers"><?php echo $totalMembers; ?></div>
                     <div class="stat-label">Total Anggota</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">
                         <i class="fas fa-weight-hanging"></i>
                     </div>
-                    <div class="stat-value" id="totalWaste">542 kg</div>
+                    <div class="stat-value" id="totalWaste"><?php echo formatWeight($totalWaste); ?></div>
                     <div class="stat-label">Total Sampah</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">
                         <i class="fas fa-money-bill-wave"></i>
                     </div>
-                    <div class="stat-value" id="totalIncome">8,25 JT</div>
+                    <div class="stat-value" id="totalIncome"><?php echo formatRupiah($totalIncome); ?></div>
                     <div class="stat-label">Total Pendapatan</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">
                         <i class="fas fa-user-clock"></i>
                     </div>
-                    <div class="stat-value" id="activeMembers">42</div>
+                    <div class="stat-value" id="activeMembers"><?php echo $activeMembers; ?></div>
                     <div class="stat-label">Anggota Aktif</div>
                 </div>
             </div>
@@ -754,7 +909,14 @@ $user_email = $_SESSION['alamat_email'];
                                 </tr>
                             </thead>
                             <tbody id="recentMembersTable">
-                                <!-- Data akan diisi oleh JavaScript -->
+                                <?php foreach($recentMembers as $member): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($member['nama']); ?></td>
+                                    <td><?php echo htmlspecialchars($member['email']); ?></td>
+                                    <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
+                                    <td><span class="badge badge-success"><?php echo $member['status'] === 'active' ? 'Aktif' : 'Nonaktif'; ?></span></td>
+                                </tr>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
@@ -779,7 +941,14 @@ $user_email = $_SESSION['alamat_email'];
                                 </tr>
                             </thead>
                             <tbody id="recentWasteTable">
-                                <!-- Data akan diisi oleh JavaScript -->
+                                <?php foreach($recentWaste as $waste): ?>
+                                <tr>
+                                    <td><?php echo date('d M Y', strtotime($waste['tanggal'])); ?></td>
+                                    <td><?php echo htmlspecialchars($waste['jenis_sampah']); ?></td>
+                                    <td><?php echo $waste['berat']; ?> kg</td>
+                                    <td><?php echo number_format($waste['total_harga']); ?></td>
+                                </tr>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
@@ -818,7 +987,22 @@ $user_email = $_SESSION['alamat_email'];
                             </tr>
                         </thead>
                         <tbody id="allMembersTable">
-                            <!-- Data akan diisi oleh JavaScript -->
+                            <?php foreach($allMembers as $member): ?>
+                            <tr>
+                                <td><?php echo $member['id']; ?></td>
+                                <td><?php echo htmlspecialchars($member['nama']); ?></td>
+                                <td><?php echo htmlspecialchars($member['email']); ?></td>
+                                <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
+                                <td><span class="badge <?php echo $member['status'] === 'active' ? 'badge-success' : 'badge-danger'; ?>"><?php echo $member['status'] === 'active' ? 'Aktif' : 'Nonaktif'; ?></span></td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-danger btn-sm delete-member-btn" data-id="<?php echo $member['id']; ?>">
+                                            <i class="fas fa-trash"></i> Hapus
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
@@ -853,7 +1037,23 @@ $user_email = $_SESSION['alamat_email'];
                             </tr>
                         </thead>
                         <tbody id="wasteTable">
-                            <!-- Data akan diisi oleh JavaScript -->
+                            <?php foreach($allWasteData as $waste): ?>
+                            <tr>
+                                <td><?php echo date('d M Y', strtotime($waste['tanggal'])); ?></td>
+                                <td><?php echo htmlspecialchars($waste['nama']); ?></td>
+                                <td><?php echo htmlspecialchars($waste['jenis_sampah']); ?></td>
+                                <td><?php echo $waste['berat']; ?> kg</td>
+                                <td><?php echo number_format($waste['harga_per_kg']); ?></td>
+                                <td><?php echo number_format($waste['total_harga']); ?></td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-danger btn-sm delete-waste-btn" data-id="<?php echo $waste['id']; ?>">
+                                            <i class="fas fa-trash"></i> Hapus
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
@@ -882,7 +1082,27 @@ $user_email = $_SESSION['alamat_email'];
                             </tr>
                         </thead>
                         <tbody id="priceTable">
-                            <!-- Data akan diisi oleh JavaScript -->
+                            <?php foreach($wastePrices as $price): ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($price['jenis_sampah']); ?></td>
+                                <td><?php echo number_format($price['harga_per_kg']); ?></td>
+                                <td>
+                                    <span class="badge <?php echo $price['status'] === 'active' ? 'badge-success' : 'badge-danger'; ?>">
+                                        <?php echo $price['status'] === 'active' ? 'Aktif' : 'Nonaktif'; ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-outline btn-sm edit-btn" data-id="<?php echo $price['id']; ?>">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </button>
+                                        <button class="btn btn-danger btn-sm delete-btn" data-id="<?php echo $price['id']; ?>">
+                                            <i class="fas fa-trash"></i> Hapus
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
@@ -905,14 +1125,14 @@ $user_email = $_SESSION['alamat_email'];
                         <div class="stat-icon">
                             <i class="fas fa-money-bill-wave"></i>
                         </div>
-                        <div class="stat-value" id="monthIncome">2,75 JT</div>
+                        <div class="stat-value" id="monthIncome"><?php echo formatRupiah($monthIncome); ?></div>
                         <div class="stat-label">Pendapatan Bulan Ini</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon">
                             <i class="fas fa-weight-hanging"></i>
                         </div>
-                        <div class="stat-value" id="monthWaste">95 kg</div>
+                        <div class="stat-value" id="monthWaste"><?php echo formatWeight($monthWaste); ?></div>
                         <div class="stat-label">Sampah Bulan Ini</div>
                     </div>
                     <div class="stat-card">
@@ -945,7 +1165,16 @@ $user_email = $_SESSION['alamat_email'];
                             </tr>
                         </thead>
                         <tbody id="incomeTable">
-                            <!-- Data akan diisi oleh JavaScript -->
+                            <?php foreach($incomeData as $income): ?>
+                            <tr>
+                                <td><?php echo getMonthName($income['bulan']); ?></td>
+                                <td><?php echo number_format($income['total_sampah'], 1); ?> kg</td>
+                                <td><?php echo number_format($income['total_pendapatan']); ?></td>
+                                <td>
+                                    <span class="badge badge-success"><?php echo $income['status']; ?></span>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
@@ -968,35 +1197,15 @@ $user_email = $_SESSION['alamat_email'];
                     <h4>Database Admin</h4>
                     <div class="form-group">
                         <label for="dbUrl">URL Database</label>
-                        <input type="text" id="dbUrl" class="form-control" placeholder="Masukkan URL koneksi database" value="jdbc:mysql://localhost:3306/bank_sampah_db">
+                        <input type="text" id="dbUrl" class="form-control" placeholder="Masukkan URL koneksi database" value="jdbc:mysql://localhost:3306/bank_sampah">
                     </div>
                     <div class="form-group">
                         <label for="dbUsername">Username Database</label>
-                        <input type="text" id="dbUsername" class="form-control" placeholder="Masukkan username database" value="admin_user">
+                        <input type="text" id="dbUsername" class="form-control" placeholder="Masukkan username database" value="root">
                     </div>
                     <div class="form-group">
                         <label for="dbPassword">Password Database</label>
                         <input type="password" id="dbPassword" class="form-control" placeholder="Masukkan password database" value="********">
-                    </div>
-                </div>
-
-                <div class="db-connection-form">
-                    <h4>Database Dashboard User</h4>
-                    <div class="form-group">
-                        <label for="userDbUrl">URL Database User</label>
-                        <input type="text" id="userDbUrl" class="form-control" placeholder="Masukkan URL koneksi database user" value="jdbc:mysql://localhost:3306/bank_sampah_user">
-                        <div class="connection-info">
-                            <i class="fas fa-info-circle"></i>
-                            <span>Database ini akan digunakan untuk sinkronisasi data anggota secara otomatis</span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="userDbUsername">Username Database User</label>
-                        <input type="text" id="userDbUsername" class="form-control" placeholder="Masukkan username database user" value="user_db">
-                    </div>
-                    <div class="form-group">
-                        <label for="userDbPassword">Password Database User</label>
-                        <input type="password" id="userDbPassword" class="form-control" placeholder="Masukkan password database user" value="********">
                     </div>
                 </div>
 
@@ -1020,16 +1229,12 @@ $user_email = $_SESSION['alamat_email'];
                         <span class="badge badge-success" id="adminDbStatus">Terhubung</span>
                     </div>
                     <div class="status-item">
-                        <span>Database User:</span>
-                        <span class="badge badge-success" id="userDbStatus">Terhubung</span>
-                    </div>
-                    <div class="status-item">
                         <span>Terakhir Diperbarui:</span>
-                        <span id="lastUpdate">5 menit yang lalu</span>
+                        <span id="lastUpdate"><?php echo date('d M Y H:i:s'); ?></span>
                     </div>
                     <div class="status-item">
-                        <span>Anggota Tersinkronisasi:</span>
-                        <span id="syncedMembers">127 dari 127</span>
+                        <span>Total Anggota:</span>
+                        <span id="syncedMembers"><?php echo $totalMembers; ?> orang</span>
                     </div>
                 </div>
             </div>
@@ -1079,27 +1284,35 @@ $user_email = $_SESSION['alamat_email'];
             <div class="modal-body">
                 <div class="form-group">
                     <label for="wasteDate">Tanggal</label>
-                    <input type="date" id="wasteDate" class="form-control" value="">
+                    <input type="date" id="wasteDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
                 </div>
                 <div class="form-group">
                     <label for="wasteMember">Anggota</label>
                     <select id="wasteMember" class="form-control">
-                        <!-- Options akan diisi oleh JavaScript -->
+                        <?php foreach($allMembers as $member): ?>
+                        <option value="<?php echo $member['id']; ?>"><?php echo htmlspecialchars($member['nama']); ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group">
                     <label for="wasteType">Jenis Sampah</label>
                     <select id="wasteType" class="form-control">
-                        <option value="plastik">Plastik</option>
-                        <option value="kertas">Kertas</option>
-                        <option value="logam">Logam</option>
-                        <option value="kaca">Kaca</option>
-                        <option value="organik">Organik</option>
+                        <?php foreach($wastePrices as $price): ?>
+                        <?php if($price['status'] === 'active'): ?>
+                        <option value="<?php echo $price['jenis_sampah']; ?>" data-price="<?php echo $price['harga_per_kg']; ?>">
+                            <?php echo htmlspecialchars($price['jenis_sampah']); ?> (Rp <?php echo number_format($price['harga_per_kg']); ?>)
+                        </option>
+                        <?php endif; ?>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group">
                     <label for="wasteWeight">Berat (kg)</label>
-                    <input type="number" id="wasteWeight" class="form-control" placeholder="Masukkan berat sampah">
+                    <input type="number" id="wasteWeight" class="form-control" placeholder="Masukkan berat sampah" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>Total Harga (Rp)</label>
+                    <input type="text" id="totalPrice" class="form-control" readonly style="background-color: #f8f9fa;">
                 </div>
             </div>
             <div class="modal-footer">
@@ -1118,55 +1331,20 @@ $user_email = $_SESSION['alamat_email'];
     </div>
 
     <script>
-        // Data untuk aplikasi
+        // Data untuk aplikasi - diambil dari PHP
         const appData = {
-            allMembers: [
-                { id: 1, name: "Ahmad Fauzi", email: "ahmad.fauzi@email.com", date: "2023-06-15", status: "active" },
-                { id: 2, name: "Siti Rahayu", email: "siti.rahayu@email.com", date: "2023-06-14", status: "active" },
-                { id: 3, name: "Budi Santoso", email: "budi.santoso@email.com", date: "2023-06-13", status: "active" },
-                { id: 4, name: "Maya Sari", email: "maya.sari@email.com", date: "2023-06-12", status: "active" },
-                { id: 5, name: "Rizki Pratama", email: "rizki.pratama@email.com", date: "2023-06-11", status: "active" },
-                { id: 6, name: "Dewi Anggraini", email: "dewi.anggraini@email.com", date: "2023-06-10", status: "active" },
-                { id: 7, name: "Joko Widodo", email: "joko.widodo@email.com", date: "2023-06-09", status: "active" }
-            ],
-            wastePrices: [
-                { id: 1, type: "Plastik", price: 3000, status: "active" },
-                { id: 2, type: "Kertas", price: 2000, status: "active" },
-                { id: 3, type: "Logam", price: 5000, status: "active" },
-                { id: 4, type: "Kaca", price: 1500, status: "inactive" },
-                { id: 5, type: "Organik", price: 1000, status: "active" }
-            ],
-            wasteData: [
-                { id: 1, date: "2023-06-15", member: "Ahmad Fauzi", type: "Plastik", weight: 25, price: 3000, total: 75000 },
-                { id: 2, date: "2023-06-14", member: "Siti Rahayu", type: "Kertas", weight: 18, price: 2000, total: 36000 },
-                { id: 3, date: "2023-06-13", member: "Budi Santoso", type: "Logam", weight: 12, price: 5000, total: 60000 },
-                { id: 4, date: "2023-06-12", member: "Maya Sari", type: "Plastik", weight: 30, price: 3000, total: 90000 },
-                { id: 5, date: "2023-06-11", member: "Rizki Pratama", type: "Organik", weight: 45, price: 1000, total: 45000 }
-            ],
-            incomeData: [
-                { month: "Januari", waste: 120, income: 360000, status: "paid" },
-                { month: "Februari", waste: 135, income: 405000, status: "paid" },
-                { month: "Maret", waste: 110, income: 330000, status: "paid" },
-                { month: "April", waste: 150, income: 450000, status: "paid" },
-                { month: "Mei", waste: 165, income: 495000, status: "paid" },
-                { month: "Juni", waste: 95, income: 285000, status: "pending" }
-            ],
+            allMembers: <?php echo json_encode($allMembers); ?>,
+            wastePrices: <?php echo json_encode($wastePrices); ?>,
+            wasteData: <?php echo json_encode($allWasteData); ?>,
+            incomeData: <?php echo json_encode($incomeData); ?>,
             stats: {
-                totalMembers: 127,
-                totalWaste: 542,
-                totalIncome: 8250000,
-                activeMembers: 42,
-                monthIncome: 2750000,
-                monthWaste: 95,
+                totalMembers: <?php echo $totalMembers; ?>,
+                totalWaste: <?php echo $totalWaste ?: 0; ?>,
+                totalIncome: <?php echo $totalIncome ?: 0; ?>,
+                activeMembers: <?php echo $activeMembers; ?>,
+                monthIncome: <?php echo $monthIncome ?: 0; ?>,
+                monthWaste: <?php echo $monthWaste ?: 0; ?>,
                 growth: "+12%"
-            },
-            dbConfig: {
-                adminUrl: "jdbc:mysql://localhost:3306/bank_sampah_db",
-                adminUsername: "admin_user",
-                adminPassword: "********",
-                userUrl: "jdbc:mysql://localhost:3306/bank_sampah_user",
-                userUsername: "user_db",
-                userPassword: "********"
             }
         };
 
@@ -1174,12 +1352,6 @@ $user_email = $_SESSION['alamat_email'];
         const header = document.getElementById('header');
         const navLinks = document.getElementById('navLinks');
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        const recentMembersTable = document.getElementById('recentMembersTable');
-        const allMembersTable = document.getElementById('allMembersTable');
-        const recentWasteTable = document.getElementById('recentWasteTable');
-        const priceTable = document.getElementById('priceTable');
-        const wasteTable = document.getElementById('wasteTable');
-        const incomeTable = document.getElementById('incomeTable');
         const refreshDataBtn = document.getElementById('refreshData');
         const refreshMembersBtn = document.getElementById('refreshMembers');
         const viewAllMembersBtn = document.getElementById('viewAllMembers');
@@ -1206,6 +1378,7 @@ $user_email = $_SESSION['alamat_email'];
         const wasteMember = document.getElementById('wasteMember');
         const wasteType = document.getElementById('wasteType');
         const wasteWeight = document.getElementById('wasteWeight');
+        const totalPrice = document.getElementById('totalPrice');
         const saveDbConfigBtn = document.getElementById('saveDbConfig');
         const testConnectionBtn = document.getElementById('testConnection');
         const toast = document.getElementById('toast');
@@ -1213,46 +1386,17 @@ $user_email = $_SESSION['alamat_email'];
         const navLinksElements = document.querySelectorAll('.nav-link');
         const tabContents = document.querySelectorAll('.tab-content');
 
-        // Stat elements
-        const totalMembersEl = document.getElementById('totalMembers');
-        const totalWasteEl = document.getElementById('totalWaste');
-        const totalIncomeEl = document.getElementById('totalIncome');
-        const activeMembersEl = document.getElementById('activeMembers');
-        const monthIncomeEl = document.getElementById('monthIncome');
-        const monthWasteEl = document.getElementById('monthWaste');
-        const growthEl = document.getElementById('growth');
-
-        // Database config elements
-        const dbUrl = document.getElementById('dbUrl');
-        const dbUsername = document.getElementById('dbUsername');
-        const dbPassword = document.getElementById('dbPassword');
-        const userDbUrl = document.getElementById('userDbUrl');
-        const userDbUsername = document.getElementById('userDbUsername');
-        const userDbPassword = document.getElementById('userDbPassword');
-
-        // Set today's date as default for waste date
-        wasteDate.valueAsDate = new Date();
-
         let currentEditId = null;
         let autoUpdateInterval;
 
         // Initialize the application
         function init() {
-            renderRecentMembers();
-            renderAllMembers();
-            renderRecentWaste();
-            renderWastePrices();
-            renderWasteData();
-            renderIncomeData();
-            updateStats();
-            populateMemberSelect();
-            loadDbConfig();
             setupEventListeners();
             startAutoUpdate();
             
             // Show welcome message
             setTimeout(() => {
-                showToast('Dashboard berhasil dimuat! Data anggota akan diperbarui otomatis.');
+                showToast('Dashboard admin berhasil dimuat!');
             }, 1000);
         }
 
@@ -1323,6 +1467,10 @@ $user_email = $_SESSION['alamat_email'];
             // Test database connection
             testConnectionBtn.addEventListener('click', testConnection);
             
+            // Calculate total price when weight or type changes
+            wasteWeight.addEventListener('input', calculateTotalPrice);
+            wasteType.addEventListener('change', calculateTotalPrice);
+            
             // Close modals when clicking outside
             window.addEventListener('click', (e) => {
                 if (e.target === editPriceModal) {
@@ -1332,6 +1480,45 @@ $user_email = $_SESSION['alamat_email'];
                     closeWasteModalFunc();
                 }
             });
+
+            // Add event listeners to delete buttons
+            document.querySelectorAll('.delete-member-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                    deleteMember(id);
+                });
+            });
+
+            document.querySelectorAll('.delete-waste-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                    deleteWasteData(id);
+                });
+            });
+
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                    openEditModal(id);
+                });
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                    deletePrice(id);
+                });
+            });
+        }
+
+        // Calculate total price
+        function calculateTotalPrice() {
+            const selectedOption = wasteType.options[wasteType.selectedIndex];
+            const pricePerKg = selectedOption.getAttribute('data-price');
+            const weight = parseFloat(wasteWeight.value) || 0;
+            const total = pricePerKg * weight;
+            
+            totalPrice.value = total.toLocaleString('id-ID');
         }
 
         // Handle scroll for navbar effect
@@ -1377,211 +1564,32 @@ $user_email = $_SESSION['alamat_email'];
             });
         }
 
-        // Render recent members table
-        function renderRecentMembers() {
-            recentMembersTable.innerHTML = '';
-            // Show only 5 most recent members
-            const recentMembers = [...appData.allMembers]
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .slice(0, 5);
-                
-            recentMembers.forEach(member => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${member.name}</td>
-                    <td>${member.email}</td>
-                    <td>${formatDate(member.date)}</td>
-                    <td><span class="badge badge-success">Aktif</span></td>
-                `;
-                recentMembersTable.appendChild(row);
-            });
-        }
-
-        // Render all members table
-        function renderAllMembers() {
-            allMembersTable.innerHTML = '';
-            appData.allMembers.forEach(member => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${member.id}</td>
-                    <td>${member.name}</td>
-                    <td>${member.email}</td>
-                    <td>${formatDate(member.date)}</td>
-                    <td><span class="badge badge-success">Aktif</span></td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-danger btn-sm delete-member-btn" data-id="${member.id}">
-                                <i class="fas fa-trash"></i> Hapus
-                            </button>
-                        </div>
-                    </td>
-                `;
-                allMembersTable.appendChild(row);
-            });
-
-            // Add event listeners to delete buttons
-            document.querySelectorAll('.delete-member-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    deleteMember(id);
-                });
-            });
-        }
-
-        // Render recent waste table
-        function renderRecentWaste() {
-            recentWasteTable.innerHTML = '';
-            // Show only 5 most recent entries
-            const recentWaste = appData.wasteData.slice(0, 5);
-            recentWaste.forEach(waste => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${formatDate(waste.date)}</td>
-                    <td>${waste.type}</td>
-                    <td>${waste.weight} kg</td>
-                    <td>${waste.total.toLocaleString('id-ID')}</td>
-                `;
-                recentWasteTable.appendChild(row);
-            });
-        }
-
-        // Render waste prices table
-        function renderWastePrices() {
-            priceTable.innerHTML = '';
-            appData.wastePrices.forEach(price => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${price.type}</td>
-                    <td>${price.price.toLocaleString('id-ID')}</td>
-                    <td>
-                        <span class="badge ${price.status === 'active' ? 'badge-success' : 'badge-danger'}">
-                            ${price.status === 'active' ? 'Aktif' : 'Nonaktif'}
-                        </span>
-                    </td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-outline btn-sm edit-btn" data-id="${price.id}">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            <button class="btn btn-danger btn-sm delete-btn" data-id="${price.id}">
-                                <i class="fas fa-trash"></i> Hapus
-                            </button>
-                        </div>
-                    </td>
-                `;
-                priceTable.appendChild(row);
-            });
-
-            // Add event listeners to buttons
-            document.querySelectorAll('.edit-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    openEditModal(id);
-                });
-            });
-
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    deletePrice(id);
-                });
-            });
-        }
-
-        // Render waste data table
-        function renderWasteData() {
-            wasteTable.innerHTML = '';
-            appData.wasteData.forEach(waste => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${formatDate(waste.date)}</td>
-                    <td>${waste.member}</td>
-                    <td>${waste.type}</td>
-                    <td>${waste.weight} kg</td>
-                    <td>${waste.price.toLocaleString('id-ID')}</td>
-                    <td>${waste.total.toLocaleString('id-ID')}</td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-danger btn-sm delete-waste-btn" data-id="${waste.id}">
-                                <i class="fas fa-trash"></i> Hapus
-                            </button>
-                        </div>
-                    </td>
-                `;
-                wasteTable.appendChild(row);
-            });
-
-            // Add event listeners to delete buttons
-            document.querySelectorAll('.delete-waste-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    deleteWasteData(id);
-                });
-            });
-        }
-
-        // Render income data table
-        function renderIncomeData() {
-            incomeTable.innerHTML = '';
-            appData.incomeData.forEach(income => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${income.month}</td>
-                    <td>${income.waste} kg</td>
-                    <td>${income.income.toLocaleString('id-ID')}</td>
-                    <td>
-                        <span class="badge ${income.status === 'paid' ? 'badge-success' : 'badge-warning'}">
-                            ${income.status === 'paid' ? 'Dibayar' : 'Menunggu'}
-                        </span>
-                    </td>
-                `;
-                incomeTable.appendChild(row);
-            });
-        }
-
-        // Update statistics
-        function updateStats() {
-            totalMembersEl.textContent = appData.stats.totalMembers;
-            totalWasteEl.textContent = `${appData.stats.totalWaste} kg`;
-            totalIncomeEl.textContent = `8,25 JT`;
-            activeMembersEl.textContent = appData.stats.activeMembers;
-            monthIncomeEl.textContent = `2,75 JT`;
-            monthWasteEl.textContent = `${appData.stats.monthWaste} kg`;
-            growthEl.textContent = appData.stats.growth;
-        }
-
-        // Populate member select for waste form
-        function populateMemberSelect() {
-            wasteMember.innerHTML = '';
-            appData.allMembers.forEach(member => {
-                const option = document.createElement('option');
-                option.value = member.id;
-                option.textContent = member.name;
-                wasteMember.appendChild(option);
-            });
-        }
-
-        // Format date
-        function formatDate(dateString) {
-            const options = { year: 'numeric', month: 'short', day: 'numeric' };
-            return new Date(dateString).toLocaleDateString('id-ID', options);
-        }
-
         // Delete member
         function deleteMember(id) {
             if (confirm('Apakah Anda yakin ingin menghapus anggota ini?')) {
-                const memberIndex = appData.allMembers.findIndex(member => member.id === id);
-                if (memberIndex !== -1) {
-                    const memberName = appData.allMembers[memberIndex].name;
-                    appData.allMembers.splice(memberIndex, 1);
-                    appData.stats.totalMembers--;
-                    appData.stats.activeMembers--;
-                    renderAllMembers();
-                    renderRecentMembers();
-                    updateStats();
-                    populateMemberSelect();
-                    showToast(`Anggota ${memberName} berhasil dihapus`);
-                }
+                // AJAX request untuk menghapus anggota
+                fetch('delete_member.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `id=${id}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Anggota berhasil dihapus');
+                        setTimeout(() => {
+                            location.reload(); // Reload untuk update data terbaru
+                        }, 1000);
+                    } else {
+                        showToast('Gagal menghapus anggota: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Terjadi kesalahan saat menghapus anggota', 'error');
+                });
             }
         }
 
@@ -1590,8 +1598,8 @@ $user_email = $_SESSION['alamat_email'];
             const price = appData.wastePrices.find(p => p.id === id);
             if (price) {
                 currentEditId = id;
-                editJenis.value = price.type;
-                editHarga.value = price.price;
+                editJenis.value = price.jenis_sampah;
+                editHarga.value = price.harga_per_kg;
                 editStatus.value = price.status;
                 editPriceModal.style.display = 'flex';
             }
@@ -1606,152 +1614,174 @@ $user_email = $_SESSION['alamat_email'];
         // Close waste modal
         function closeWasteModalFunc() {
             addWasteModal.style.display = 'none';
+            // Reset form
+            wasteWeight.value = '';
+            totalPrice.value = '';
         }
 
         // Save price changes
         function savePriceChanges() {
             if (currentEditId) {
-                const priceIndex = appData.wastePrices.findIndex(p => p.id === currentEditId);
-                if (priceIndex !== -1) {
-                    appData.wastePrices[priceIndex].type = editJenis.value;
-                    appData.wastePrices[priceIndex].price = parseInt(editHarga.value);
-                    appData.wastePrices[priceIndex].status = editStatus.value;
-                    renderWastePrices();
-                    closeEditModalFunc();
-                    showToast('Harga sampah berhasil diperbarui');
-                }
+                const formData = new FormData();
+                formData.append('id', currentEditId);
+                formData.append('jenis_sampah', editJenis.value);
+                formData.append('harga_per_kg', editHarga.value);
+                formData.append('status', editStatus.value);
+
+                fetch('update_price.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Harga sampah berhasil diperbarui');
+                        setTimeout(() => {
+                            location.reload(); // Reload untuk update data terbaru
+                        }, 1000);
+                    } else {
+                        showToast('Gagal memperbarui harga: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Terjadi kesalahan saat memperbarui harga', 'error');
+                });
             }
         }
 
         // Save waste data
         function saveWasteData() {
             const selectedMemberId = wasteMember.value;
-            const selectedMember = appData.allMembers.find(m => m.id == selectedMemberId);
-            const selectedType = wasteType.options[wasteType.selectedIndex].text;
-            const selectedPrice = appData.wastePrices.find(p => p.type === selectedType)?.price || 0;
+            const selectedType = wasteType.value;
+            const selectedOption = wasteType.options[wasteType.selectedIndex];
+            const selectedPrice = selectedOption.getAttribute('data-price');
             const weight = parseFloat(wasteWeight.value);
             const total = selectedPrice * weight;
             
-            if (!wasteDate.value || !weight || !selectedMember) {
+            if (!wasteDate.value || !weight || !selectedMemberId) {
                 showToast('Harap isi semua field dengan benar', 'error');
                 return;
             }
             
-            const newId = appData.wasteData.length > 0 ? Math.max(...appData.wasteData.map(w => w.id)) + 1 : 1;
-            appData.wasteData.unshift({
-                id: newId,
-                date: wasteDate.value,
-                member: selectedMember.name,
-                type: selectedType,
-                weight: weight,
-                price: selectedPrice,
-                total: total
+            const formData = new FormData();
+            formData.append('user_id', selectedMemberId);
+            formData.append('tanggal', wasteDate.value);
+            formData.append('jenis_sampah', selectedType);
+            formData.append('berat', weight);
+            formData.append('harga_per_kg', selectedPrice);
+            formData.append('total_harga', total);
+
+            fetch('add_waste.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Data sampah berhasil ditambahkan');
+                    setTimeout(() => {
+                        location.reload(); // Reload untuk update data terbaru
+                    }, 1000);
+                } else {
+                    showToast('Gagal menambah data sampah: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Terjadi kesalahan saat menambah data sampah', 'error');
             });
-            
-            // Update stats
-            appData.stats.totalWaste += weight;
-            appData.stats.totalIncome += total;
-            appData.stats.monthWaste += weight;
-            appData.stats.monthIncome += total;
-            
-            renderWasteData();
-            renderRecentWaste();
-            updateStats();
-            closeWasteModalFunc();
-            showToast('Data sampah berhasil ditambahkan');
-            
-            // Reset form
-            wasteWeight.value = '';
         }
 
         // Delete waste data
         function deleteWasteData(id) {
             if (confirm('Apakah Anda yakin ingin menghapus data sampah ini?')) {
-                const wasteIndex = appData.wasteData.findIndex(w => w.id === id);
-                if (wasteIndex !== -1) {
-                    const waste = appData.wasteData[wasteIndex];
-                    // Update stats
-                    appData.stats.totalWaste -= waste.weight;
-                    appData.stats.totalIncome -= waste.total;
-                    
-                    appData.wasteData.splice(wasteIndex, 1);
-                    renderWasteData();
-                    renderRecentWaste();
-                    updateStats();
-                    showToast('Data sampah berhasil dihapus');
-                }
+                fetch('delete_waste.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `id=${id}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Data sampah berhasil dihapus');
+                        setTimeout(() => {
+                            location.reload(); // Reload untuk update data terbaru
+                        }, 1000);
+                    } else {
+                        showToast('Gagal menghapus data sampah: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Terjadi kesalahan saat menghapus data sampah', 'error');
+                });
             }
         }
 
         // Add new price
         function addNewPrice() {
-            const newId = appData.wastePrices.length > 0 ? Math.max(...appData.wastePrices.map(p => p.id)) + 1 : 1;
-            appData.wastePrices.push({
-                id: newId,
-                type: "Jenis Baru",
-                price: 0,
-                status: "active"
+            const formData = new FormData();
+            formData.append('jenis_sampah', 'Jenis Baru');
+            formData.append('harga_per_kg', 0);
+            formData.append('status', 'active');
+
+            fetch('add_price.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Jenis sampah baru berhasil ditambahkan');
+                    setTimeout(() => {
+                        location.reload(); // Reload untuk update data terbaru
+                    }, 1000);
+                } else {
+                    showToast('Gagal menambah jenis sampah: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Terjadi kesalahan saat menambah jenis sampah', 'error');
             });
-            renderWastePrices();
-            openEditModal(newId);
         }
 
         // Delete price
         function deletePrice(id) {
             if (confirm('Apakah Anda yakin ingin menghapus harga ini?')) {
-                const priceIndex = appData.wastePrices.findIndex(p => p.id === id);
-                if (priceIndex !== -1) {
-                    appData.wastePrices.splice(priceIndex, 1);
-                    renderWastePrices();
-                    showToast('Harga sampah berhasil dihapus');
-                }
+                fetch('delete_price.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `id=${id}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Harga sampah berhasil dihapus');
+                        setTimeout(() => {
+                            location.reload(); // Reload untuk update data terbaru
+                        }, 1000);
+                    } else {
+                        showToast('Gagal menghapus harga: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Terjadi kesalahan saat menghapus harga', 'error');
+                });
             }
-        }
-
-        // Simulate new member registration from user dashboard
-        function simulateNewMember() {
-            const names = [
-                'Ahmad Fauzi', 'Siti Rahayu', 'Budi Santoso', 'Maya Sari', 
-                'Rizki Pratama', 'Dewi Anggraini', 'Joko Widodo', 'Sari Indah',
-                'Rudi Hartono', 'Lina Marlina', 'Andi Prasetyo', 'Fitriani'
-            ];
-            const domains = ['gmail.com', 'yahoo.com', 'email.com', 'outlook.com'];
-            
-            const randomName = names[Math.floor(Math.random() * names.length)];
-            const randomDomain = domains[Math.floor(Math.random() * domains.length)];
-            const email = `${randomName.toLowerCase().replace(' ', '.')}@${randomDomain}`;
-            
-            const newId = appData.allMembers.length > 0 ? Math.max(...appData.allMembers.map(m => m.id)) + 1 : 1;
-            const today = new Date().toISOString().split('T')[0];
-            
-            return {
-                id: newId,
-                name: randomName,
-                email: email,
-                date: today,
-                status: 'active'
-            };
         }
 
         // Auto update members from user dashboard
         function autoUpdateMembers() {
-            // Simulate random new member registration (30% chance)
-            if (Math.random() < 0.3) {
-                const newMember = simulateNewMember();
-                appData.allMembers.unshift(newMember);
-                appData.stats.totalMembers++;
-                appData.stats.activeMembers++;
-                
-                renderAllMembers();
-                renderRecentMembers();
-                updateStats();
-                populateMemberSelect();
-                
-                // Update last update time
-                document.getElementById('lastUpdate').textContent = 'Baru saja';
-                document.getElementById('syncedMembers').textContent = `${appData.stats.totalMembers} dari ${appData.stats.totalMembers}`;
-                
-                showToast(`Anggota baru: ${newMember.name}`, 'info');
+            // Simulate random new member registration (10% chance)
+            if (Math.random() < 0.1) {
+                showToast('Memeriksa update data anggota...', 'info');
             }
         }
 
@@ -1769,17 +1799,7 @@ $user_email = $_SESSION['alamat_email'];
             
             // Simulate API call
             setTimeout(() => {
-                // Update stats with random data for demo
-                appData.stats.totalWaste += Math.floor(Math.random() * 10);
-                
-                renderRecentMembers();
-                updateStats();
-                
-                // Restore button
-                refreshDataBtn.innerHTML = originalText;
-                refreshDataBtn.disabled = false;
-                
-                showToast('Data berhasil diperbarui');
+                location.reload(); // Reload page untuk data terbaru
             }, 1500);
         }
 
@@ -1792,43 +1812,13 @@ $user_email = $_SESSION['alamat_email'];
             
             // Simulate API call to get latest members from user database
             setTimeout(() => {
-                // Simulate new member from user dashboard
-                const newMember = simulateNewMember();
-                appData.allMembers.unshift(newMember);
-                appData.stats.totalMembers++;
-                appData.stats.activeMembers++;
-                
-                renderAllMembers();
-                renderRecentMembers();
-                updateStats();
-                populateMemberSelect();
-                
-                // Update last update time
-                document.getElementById('lastUpdate').textContent = 'Baru saja';
-                document.getElementById('syncedMembers').textContent = `${appData.stats.totalMembers} dari ${appData.stats.totalMembers}`;
-                
-                // Restore button
-                refreshMembersBtn.innerHTML = originalText;
-                refreshMembersBtn.disabled = false;
-                
-                showToast('Data anggota berhasil diperbarui dari database user');
+                location.reload(); // Reload page untuk data terbaru
             }, 1500);
-        }
-
-        // Load database configuration
-        function loadDbConfig() {
-            dbUrl.value = appData.dbConfig.adminUrl;
-            dbUsername.value = appData.dbConfig.adminUsername;
-            dbPassword.value = appData.dbConfig.adminPassword;
-            userDbUrl.value = appData.dbConfig.userUrl;
-            userDbUsername.value = appData.dbConfig.userUsername;
-            userDbPassword.value = appData.dbConfig.userPassword;
         }
 
         // Reset database configuration
         function resetDbConfig() {
             if (confirm('Apakah Anda yakin ingin mengembalikan pengaturan database ke nilai default?')) {
-                loadDbConfig();
                 showToast('Pengaturan database berhasil direset');
             }
         }
@@ -1839,14 +1829,6 @@ $user_email = $_SESSION['alamat_email'];
             const originalText = saveDbConfigBtn.innerHTML;
             saveDbConfigBtn.innerHTML = '<div class="loading"></div> Menyimpan...';
             saveDbConfigBtn.disabled = true;
-            
-            // Update app data with new config
-            appData.dbConfig.adminUrl = dbUrl.value;
-            appData.dbConfig.adminUsername = dbUsername.value;
-            appData.dbConfig.adminPassword = dbPassword.value;
-            appData.dbConfig.userUrl = userDbUrl.value;
-            appData.dbConfig.userUsername = userDbUsername.value;
-            appData.dbConfig.userPassword = userDbPassword.value;
             
             // Simulate API call
             setTimeout(() => {

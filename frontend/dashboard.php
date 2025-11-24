@@ -739,7 +739,7 @@ function get_initials($name) {
             </div>
             
             <div class="nav-right">
-                <div class="user-info">
+                <div class="user-info"> 
                     <div class="user-details">
                         <div class="user-name"><?php echo htmlspecialchars($nama_lengkap); ?></div>
                         <div class="user-role">Anggota</div>
