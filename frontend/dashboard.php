@@ -21,21 +21,32 @@ mysqli_stmt_bind_result($user_query, $nama_lengkap, $alamat_email, $nomor_telepo
 mysqli_stmt_fetch($user_query);
 mysqli_stmt_close($user_query);
 
-// Ambil statistik user
+// Ambil statistik user dari transaksi_sampah
 $stats_query = mysqli_prepare($connect, "
     SELECT 
         COALESCE(SUM(berat), 0) as berat,
         COALESCE(SUM(harga_per_kg * berat), 0) as total_nilai,
-        COALESCE(SUM(berat * 10), 0) as total_poin,  -- Asumsi 1kg = 10 poin
         COUNT(*) as total
     FROM transaksi_sampah
     WHERE id_anggota = ?
 ");
 mysqli_stmt_bind_param($stats_query, "i", $user_id);
 mysqli_stmt_execute($stats_query);
-mysqli_stmt_bind_result($stats_query, $total_berat, vars: $total_nilai, $total_poin, $total_transaksi);
+mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_transaksi);
 mysqli_stmt_fetch($stats_query);
 mysqli_stmt_close($stats_query);
+
+// ==== BAGIAN BARU: Ambil total poin dari point_history ====
+$poin_query = mysqli_prepare($connect, "
+    SELECT COALESCE(SUM(jumlah), 0) AS total_poin
+    FROM point_history
+    WHERE id_user = ?
+");
+mysqli_stmt_bind_param($poin_query, "i", $user_id);
+mysqli_stmt_execute($poin_query);
+mysqli_stmt_bind_result($poin_query, $total_poin_history);
+mysqli_stmt_fetch($poin_query);
+mysqli_stmt_close($poin_query);
 
 // Ambil transaksi terbaru user
 $transaksi_query = mysqli_prepare($connect, "
@@ -50,7 +61,7 @@ mysqli_stmt_execute($transaksi_query);
 $transaksi_result = mysqli_stmt_get_result($transaksi_query);
 $transaksi_data = [];
 while($row = mysqli_fetch_assoc($transaksi_result)) {
-    // Tambahkan poin berdasarkan berat (1kg = 10 poin)
+    // Hitung poin transaksi (jika ingin ditampilkan)
     $row['poin'] = $row['berat'] * 10;
     $transaksi_data[] = $row;
 }
@@ -71,6 +82,7 @@ function get_initials($name) {
     return substr($initials, 0, 2);
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
