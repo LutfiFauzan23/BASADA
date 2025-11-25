@@ -33,7 +33,7 @@ $stats_query = mysqli_prepare($connect, "
 ");
 mysqli_stmt_bind_param($stats_query, "i", $user_id);
 mysqli_stmt_execute($stats_query);
-mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_poin, $total_transaksi);
+mysqli_stmt_bind_result($stats_query, $total_berat, vars: $total_nilai, $total_poin, $total_transaksi);
 mysqli_stmt_fetch($stats_query);
 mysqli_stmt_close($stats_query);
 
