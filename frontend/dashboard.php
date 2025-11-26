@@ -21,36 +21,187 @@ mysqli_stmt_bind_result($user_query, $nama_lengkap, $alamat_email, $nomor_telepo
 mysqli_stmt_fetch($user_query);
 mysqli_stmt_close($user_query);
 
-// Ambil statistik user dari transaksi_sampah
+// Ambil statistik user dari transaksi_sampah - SESUAIKAN DENGAN STRUKTUR TABEL
 $stats_query = mysqli_prepare($connect, "
     SELECT 
         COALESCE(SUM(berat), 0) as berat,
-        COALESCE(SUM(harga_per_kg * berat), 0) as total_nilai,
-        COUNT(*) as total
+        COALESCE(SUM(total), 0) as total_nilai,
+        COUNT(*) as total,
+        COALESCE(SUM(total_poin), 0) as total_poin
     FROM transaksi_sampah
     WHERE id_anggota = ?
 ");
 mysqli_stmt_bind_param($stats_query, "i", $user_id);
 mysqli_stmt_execute($stats_query);
-mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_transaksi);
+mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_transaksi, $total_poin_history);
 mysqli_stmt_fetch($stats_query);
 mysqli_stmt_close($stats_query);
 
-// ==== BAGIAN BARU: Ambil total poin dari point_history ====
-$poin_query = mysqli_prepare($connect, "
-    SELECT COALESCE(SUM(jumlah), 0) AS total_poin
-    FROM point_history
-    WHERE id_user = ?
-");
-mysqli_stmt_bind_param($poin_query, "i", $user_id);
-mysqli_stmt_execute($poin_query);
-mysqli_stmt_bind_result($poin_query, $total_poin_history);
-mysqli_stmt_fetch($poin_query);
-mysqli_stmt_close($poin_query);
+// ==== BAGIAN BARU: Handle Form Submit Jadwal Penjemputan ====
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_pickup'])) {
+    $jenis_sampah = mysqli_real_escape_string($connect, $_POST['jenis_sampah']);
+    $alamat_jemput = mysqli_real_escape_string($connect, $_POST['alamat_jemput']);
+    $catatan = mysqli_real_escape_string($connect, $_POST['catatan']);
+    
+    $foto_sampah = NULL;
+    
+    // Handle file upload
+    if (isset($_FILES['foto_sampah']) && $_FILES['foto_sampah']['error'] === 0) {
+        $uploadDir = '../uploads/jadwal_penjemputan/';
+        
+        // Buat folder jika belum ada
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        
+        $fileExtension = pathinfo($_FILES['foto_sampah']['name'], PATHINFO_EXTENSION);
+        $fileName = 'foto_' . $user_id . '_' . time() . '.' . $fileExtension;
+        $filePath = $uploadDir . $fileName;
+        
+        // Validasi file (hanya gambar)
+        $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'];
+        $maxFileSize = 5 * 1024 * 1024; // 5MB
+        
+        if (in_array(strtolower($fileExtension), $allowedTypes)) {
+            if ($_FILES['foto_sampah']['size'] <= $maxFileSize) {
+                if (move_uploaded_file($_FILES['foto_sampah']['tmp_name'], $filePath)) {
+                    $foto_sampah = $fileName;
+                } else {
+                    $upload_error = "Gagal mengupload file.";
+                }
+            } else {
+                $upload_error = "Ukuran file terlalu besar (maksimal 5MB).";
+            }
+        } else {
+            $upload_error = "Hanya file gambar (JPG, PNG, GIF) yang diizinkan.";
+        }
+    }
+    
+    // Insert ke database
+    $insert_query = mysqli_prepare($connect, "
+        INSERT INTO jadwal_penjemputan (id_user, jenis_sampah, alamat_jemput, foto_sampah, catatan, status) 
+        VALUES (?, ?, ?, ?, ?, 'pending')
+    ");
+    mysqli_stmt_bind_param($insert_query, "issss", $user_id, $jenis_sampah, $alamat_jemput, $foto_sampah, $catatan);
+    
+    if (mysqli_stmt_execute($insert_query)) {
+        $success_message = "Jadwal penjemputan berhasil diajukan!";
+        // Reset form values setelah sukses
+        $_POST = array();
+    } else {
+        $error_message = "Gagal mengajukan jadwal penjemputan: " . mysqli_error($connect);
+    }
+    
+    mysqli_stmt_close($insert_query);
+}
 
-// Ambil transaksi terbaru user
+// ==== BAGIAN BARU: Ambil data reward dari database ====
+$reward_query = mysqli_prepare($connect, "
+    SELECT id, nama_reward, deskripsi, poin_dibutuhkan, stok, gambar, kategori 
+    FROM reward 
+    WHERE status = 'active' AND stok > 0
+    ORDER BY poin_dibutuhkan ASC
+");
+mysqli_stmt_execute($reward_query);
+$reward_result = mysqli_stmt_get_result($reward_query);
+$reward_data = [];
+while($row = mysqli_fetch_assoc($reward_result)) {
+    $reward_data[] = $row;
+}
+mysqli_stmt_close($reward_query);
+
+// ==== BAGIAN BARU: Handle Redeem Reward ====
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
+    $reward_id = mysqli_real_escape_string($connect, $_POST['reward_id']);
+    
+    // Ambil data reward
+    $reward_detail_query = mysqli_prepare($connect, "
+        SELECT nama_reward, poin_dibutuhkan, stok 
+        FROM reward 
+        WHERE id = ? AND status = 'active'
+    ");
+    mysqli_stmt_bind_param($reward_detail_query, "i", $reward_id);
+    mysqli_stmt_execute($reward_detail_query);
+    mysqli_stmt_bind_result($reward_detail_query, $reward_name, $poin_dibutuhkan, $stok);
+    mysqli_stmt_fetch($reward_detail_query);
+    mysqli_stmt_close($reward_detail_query);
+    
+    // Cek apakah poin mencukupi dan stok tersedia
+    if ($total_poin_history >= $poin_dibutuhkan && $stok > 0) {
+        // Mulai transaction
+        mysqli_begin_transaction($connect);
+        
+        try {
+            // Kurangi poin user di transaksi_sampah - SESUAIKAN DENGAN TABEL
+            $insert_transaksi = mysqli_prepare($connect, "
+                INSERT INTO transaksi_sampah (id_anggota, jenis_sampah, berat, harga_per_kg, total, status, total_poin, catatan) 
+                VALUES (?, 'Penukaran Reward', 0, 0, 0, 'berhasil', ?, ?)
+            ");
+            $poin_negative = -$poin_dibutuhkan; // Buat nilai negatif
+            $keterangan = "Penukaran reward: " . $reward_name;
+            mysqli_stmt_bind_param($insert_transaksi, "iis", $user_id, $poin_negative, $keterangan);
+            mysqli_stmt_execute($insert_transaksi);
+            mysqli_stmt_close($insert_transaksi);
+            
+            // Kurangi stok reward
+            $update_reward = mysqli_prepare($connect, "
+                UPDATE reward SET stok = stok - 1 WHERE id = ?
+            ");
+            mysqli_stmt_bind_param($update_reward, "i", $reward_id);
+            mysqli_stmt_execute($update_reward);
+            mysqli_stmt_close($update_reward);
+            
+            // Commit transaction
+            mysqli_commit($connect);
+            
+            $redeem_success = "Reward berhasil ditukar! Poin Anda telah dikurangi.";
+            
+            // Refresh poin history
+            $stats_query = mysqli_prepare($connect, "
+                SELECT COALESCE(SUM(total_poin), 0) AS total_poin
+                FROM transaksi_sampah
+                WHERE id_anggota = ?
+            ");
+            mysqli_stmt_bind_param($stats_query, "i", $user_id);
+            mysqli_stmt_execute($stats_query);
+            mysqli_stmt_bind_result($stats_query, $total_poin_history);
+            mysqli_stmt_fetch($stats_query);
+            mysqli_stmt_close($stats_query);
+            
+        } catch (Exception $e) {
+            // Rollback transaction jika ada error
+            mysqli_rollback($connect);
+            $redeem_error = "Gagal menukar reward: " . $e->getMessage();
+        }
+    } else {
+        if ($total_poin_history < $poin_dibutuhkan) {
+            $redeem_error = "Poin tidak mencukupi untuk menukar reward ini.";
+        } else {
+            $redeem_error = "Stok reward habis.";
+        }
+    }
+}
+
+// ==== BAGIAN BARU: Ambil riwayat jadwal penjemputan user ====
+$jadwal_query = mysqli_prepare($connect, "
+    SELECT jenis_sampah, alamat_jemput, foto_sampah, catatan, status, tanggal_jemput, waktu_jemput, created_at 
+    FROM jadwal_penjemputan 
+    WHERE id_user = ? 
+    ORDER BY created_at DESC 
+    LIMIT 5
+");
+mysqli_stmt_bind_param($jadwal_query, "i", $user_id);
+mysqli_stmt_execute($jadwal_query);
+$jadwal_result = mysqli_stmt_get_result($jadwal_query);
+$jadwal_data = [];
+while($row = mysqli_fetch_assoc($jadwal_result)) {
+    $jadwal_data[] = $row;
+}
+mysqli_stmt_close($jadwal_query);
+
+// Ambil transaksi terbaru user - SESUAIKAN DENGAN STRUKTUR TABEL
 $transaksi_query = mysqli_prepare($connect, "
-    SELECT tanggal, jenis_sampah, berat, status 
+    SELECT tanggal, jenis_sampah, berat, status, total_poin, total
     FROM transaksi_sampah
     WHERE id_anggota = ? 
     ORDER BY tanggal DESC 
@@ -61,11 +212,25 @@ mysqli_stmt_execute($transaksi_query);
 $transaksi_result = mysqli_stmt_get_result($transaksi_query);
 $transaksi_data = [];
 while($row = mysqli_fetch_assoc($transaksi_result)) {
-    // Hitung poin transaksi (jika ingin ditampilkan)
-    $row['poin'] = $row['berat'] * 10;
     $transaksi_data[] = $row;
 }
 mysqli_stmt_close($transaksi_query);
+
+// Ambil semua transaksi untuk tab transaksi
+$all_transaksi_query = mysqli_prepare($connect, "
+    SELECT tanggal, jenis_sampah, berat, status, total_poin, total, harga_per_kg
+    FROM transaksi_sampah
+    WHERE id_anggota = ? 
+    ORDER BY tanggal DESC
+");
+mysqli_stmt_bind_param($all_transaksi_query, "i", $user_id);
+mysqli_stmt_execute($all_transaksi_query);
+$all_transaksi_result = mysqli_stmt_get_result($all_transaksi_query);
+$all_transaksi_data = [];
+while($row = mysqli_fetch_assoc($all_transaksi_result)) {
+    $all_transaksi_data[] = $row;
+}
+mysqli_stmt_close($all_transaksi_query);
 
 // Format currency
 function format_currency($number) {
@@ -80,6 +245,34 @@ function get_initials($name) {
         $initials .= strtoupper(substr($name, 0, 1));
     }
     return substr($initials, 0, 2);
+}
+
+// Fungsi untuk mendapatkan badge class berdasarkan status - SESUAIKAN DENGAN TABEL
+function get_status_badge($status) {
+    switch($status) {
+        case 'berhasil':
+            return 'badge-success';
+        case 'menunggu':
+            return 'badge-warning';
+        case 'gagal':
+            return 'badge-danger';
+        default:
+            return 'badge-danger';
+    }
+}
+
+// Fungsi untuk mendapatkan status text - SESUAIKAN DENGAN TABEL
+function get_status_text($status) {
+    switch($status) {
+        case 'berhasil':
+            return 'Berhasil';
+        case 'menunggu':
+            return 'Menunggu';
+        case 'gagal':
+            return 'Gagal';
+        default:
+            return $status;
+    }
 }
 ?>
 
@@ -422,25 +615,6 @@ function get_initials($name) {
         }
 
         /* Tabs */
-        .tabs {
-            display: flex;
-            border-bottom: 1px solid var(--gray);
-            margin-bottom: 20px;
-        }
-
-        .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: var(--transition);
-            font-weight: 500;
-        }
-
-        .tab.active {
-            border-bottom: 2px solid var(--primary);
-            color: var(--primary);
-        }
-
         .tab-content {
             display: none;
         }
@@ -728,13 +902,6 @@ function get_initials($name) {
             border-top: 1px solid var(--gray);
         }
 
-        /* Additional form styles */
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
         /* Toast Notification */
         .toast {
             position: fixed;
@@ -797,6 +964,118 @@ function get_initials($name) {
             font-size: 0.8rem;
             color: var(--dark-gray);
             margin-top: 5px;
+        }
+
+        /* Alert Styles */
+        .alert {
+            padding: 12px 15px;
+            border-radius: var(--radius);
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Reward Card Styles */
+        .reward-card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s;
+            border: 1px solid var(--gray);
+            position: relative;
+            cursor: pointer;
+        }
+
+        .reward-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary);
+        }
+
+        .reward-card.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .reward-card.disabled:hover {
+            transform: none;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            border-color: var(--gray);
+        }
+
+        .reward-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            font-size: 24px;
+            color: var(--primary);
+        }
+
+        .reward-image {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 0 auto 15px;
+            border: 2px solid var(--primary);
+        }
+
+        .reward-card h3 {
+            font-size: 16px;
+            color: var(--dark);
+            margin-bottom: 8px;
+        }
+
+        .reward-card p {
+            font-size: 13px;
+            color: #777;
+            margin-bottom: 10px;
+        }
+
+        .reward-points {
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .reward-stock {
+            font-size: 12px;
+            color: var(--dark-gray);
+            margin-bottom: 10px;
+        }
+
+        .reward-category {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--primary);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            text-transform: uppercase;
         }
 
         /* Responsive Styles */
@@ -873,24 +1152,11 @@ function get_initials($name) {
                 gap: 10px;
             }
             
-            .tabs {
-                flex-wrap: wrap;
-            }
-            
-            .tab {
-                padding: 8px 12px;
-                font-size: 0.85rem;
-            }
-            
             .btn-group {
                 flex-wrap: wrap;
             }
             
             .quick-actions {
-                grid-template-columns: 1fr;
-            }
-            
-            .form-row {
                 grid-template-columns: 1fr;
             }
         }
@@ -960,7 +1226,7 @@ function get_initials($name) {
                     <div class="stat-icon">
                         <i class="fas fa-star"></i>
                     </div>
-                    <div class="stat-value" id="totalPoints"><?php echo number_format($total_poin); ?></div>
+                    <div class="stat-value" id="totalPoints"><?php echo number_format($total_poin_history); ?></div>
                     <div class="stat-label">Poin Reward</div>
                 </div>
                 <div class="stat-card">
@@ -1044,14 +1310,10 @@ function get_initials($name) {
                                         <td><?php echo date('d M Y', strtotime($transaksi['tanggal'])); ?></td>
                                         <td><?php echo htmlspecialchars($transaksi['jenis_sampah']); ?></td>
                                         <td><?php echo number_format($transaksi['berat'], 1); ?> kg</td>
-                                        <td><?php echo $transaksi['poin']; ?></td>
+                                        <td><?php echo $transaksi['total_poin']; ?></td>
                                         <td>
-                                            <span class="badge <?php 
-                                                if($transaksi['status'] == 'selesai') echo 'badge-success';
-                                                elseif($transaksi['status'] == 'proses') echo 'badge-warning';
-                                                else echo 'badge-danger';
-                                            ?>">
-                                                <?php echo ucfirst($transaksi['status']); ?>
+                                            <span class="badge <?php echo get_status_badge($transaksi['status']); ?>">
+                                                <?php echo get_status_text($transaksi['status']); ?>
                                             </span>
                                         </td>
                                     </tr>
@@ -1153,7 +1415,7 @@ function get_initials($name) {
                         <div class="stat-icon">
                             <i class="fas fa-star"></i>
                         </div>
-                        <div class="stat-value"><?php echo number_format($total_poin); ?></div>
+                        <div class="stat-value"><?php echo number_format($total_poin_history); ?></div>
                         <div class="stat-label">Total Poin</div>
                     </div>
                 </div>
@@ -1181,31 +1443,29 @@ function get_initials($name) {
                                 <th>Tanggal</th>
                                 <th>Jenis Sampah</th>
                                 <th>Berat (kg)</th>
-                                <th>Nilai (Rp)</th>
+                                <th>Harga/Kg</th>
+                                <th>Total (Rp)</th>
                                 <th>Poin</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="allTransactionsTable">
-                            <?php if(empty($transaksi_data)): ?>
+                            <?php if(empty($all_transaksi_data)): ?>
                                 <tr>
-                                    <td colspan="6" style="text-align: center; color: #777;">Belum ada transaksi</td>
+                                    <td colspan="7" style="text-align: center; color: #777;">Belum ada transaksi</td>
                                 </tr>
                             <?php else: ?>
-                                <?php foreach($transaksi_data as $transaksi): ?>
+                                <?php foreach($all_transaksi_data as $transaksi): ?>
                                 <tr>
                                     <td><?php echo date('d M Y', strtotime($transaksi['tanggal'])); ?></td>
                                     <td><?php echo htmlspecialchars($transaksi['jenis_sampah']); ?></td>
                                     <td><?php echo number_format($transaksi['berat'], 1); ?></td>
-                                    <td><?php echo format_currency($transaksi['berat'] * 2000); ?></td>
-                                    <td><?php echo $transaksi['poin']; ?></td>
+                                    <td><?php echo format_currency($transaksi['harga_per_kg']); ?></td>
+                                    <td><?php echo format_currency($transaksi['total']); ?></td>
+                                    <td><?php echo $transaksi['total_poin']; ?></td>
                                     <td>
-                                        <span class="badge <?php 
-                                            if($transaksi['status'] == 'selesai') echo 'badge-success';
-                                            elseif($transaksi['status'] == 'proses') echo 'badge-warning';
-                                            else echo 'badge-danger';
-                                        ?>">
-                                            <?php echo ucfirst($transaksi['status']); ?>
+                                        <span class="badge <?php echo get_status_badge($transaksi['status']); ?>">
+                                            <?php echo get_status_text($transaksi['status']); ?>
                                         </span>
                                     </td>
                                 </tr>
@@ -1237,23 +1497,23 @@ function get_initials($name) {
                         </div>
                         <div class="month-stat-value"><?php echo number_format($total_berat * 0.3, 1); ?> kg</div>
                         <div class="month-stat-label">Total Sampah Bulan Ini</div>
-                        <div class="month-stat-period">Juni 2023</div>
+                        <div class="month-stat-period"><?php echo date('F Y'); ?></div>
                     </div>
                     <div class="month-stat-card">
                         <div class="stat-icon">
                             <i class="fas fa-star"></i>
                         </div>
-                        <div class="month-stat-value"><?php echo number_format($total_poin * 0.3); ?></div>
+                        <div class="month-stat-value"><?php echo number_format($total_poin_history * 0.3); ?></div>
                         <div class="month-stat-label">Total Poin Bulan Ini</div>
-                        <div class="month-stat-period">Juni 2023</div>
+                        <div class="month-stat-period"><?php echo date('F Y'); ?></div>
                     </div>
                     <div class="month-stat-card">
                         <div class="stat-icon">
                             <i class="fas fa-calendar-alt"></i>
                         </div>
-                        <div class="month-stat-value">6</div>
+                        <div class="month-stat-value"><?php echo $total_transaksi; ?></div>
                         <div class="month-stat-label">Transaksi Bulan Ini</div>
-                        <div class="month-stat-period">Juni 2023</div>
+                        <div class="month-stat-period"><?php echo date('F Y'); ?></div>
                     </div>
                 </div>
             </div>
@@ -1275,58 +1535,44 @@ function get_initials($name) {
                         </thead>
                         <tbody>
                             <tr>
-                                <td><strong>Juni 2023</strong></td>
+                                <td><strong><?php echo date('F Y'); ?></strong></td>
                                 <td><?php echo number_format($total_berat * 0.3, 1); ?></td>
-                                <td><?php echo number_format($total_poin * 0.3); ?></td>
-                                <td>6</td>
+                                <td><?php echo number_format($total_poin_history * 0.3); ?></td>
+                                <td><?php echo $total_transaksi; ?></td>
                                 <td><span class="badge badge-success">Aktif</span></td>
                             </tr>
                             <tr>
-                                <td>Mei 2023</td>
+                                <td><?php echo date('F Y', strtotime('-1 month')); ?></td>
                                 <td>28.5</td>
                                 <td>285</td>
                                 <td>5</td>
                                 <td><span class="badge badge-success">Selesai</span></td>
                             </tr>
                             <tr>
-                                <td>April 2023</td>
+                                <td><?php echo date('F Y', strtotime('-2 months')); ?></td>
                                 <td>26.3</td>
                                 <td>263</td>
                                 <td>4</td>
                                 <td><span class="badge badge-success">Selesai</span></td>
                             </tr>
                             <tr>
-                                <td>Maret 2023</td>
+                                <td><?php echo date('F Y', strtotime('-3 months')); ?></td>
                                 <td>27.7</td>
                                 <td>277</td>
                                 <td>5</td>
                                 <td><span class="badge badge-success">Selesai</span></td>
                             </tr>
                             <tr>
-                                <td>Februari 2023</td>
+                                <td><?php echo date('F Y', strtotime('-4 months')); ?></td>
                                 <td>24.1</td>
                                 <td>241</td>
                                 <td>4</td>
                                 <td><span class="badge badge-success">Selesai</span></td>
                             </tr>
                             <tr>
-                                <td>Januari 2023</td>
+                                <td><?php echo date('F Y', strtotime('-5 months')); ?></td>
                                 <td>23.4</td>
                                 <td>234</td>
-                                <td>4</td>
-                                <td><span class="badge badge-success">Selesai</span></td>
-                            </tr>
-                            <tr>
-                                <td>Desember 2022</td>
-                                <td>25.8</td>
-                                <td>258</td>
-                                <td>5</td>
-                                <td><span class="badge badge-success">Selesai</span></td>
-                            </tr>
-                            <tr>
-                                <td>November 2022</td>
-                                <td>22.9</td>
-                                <td>229</td>
                                 <td>4</td>
                                 <td><span class="badge badge-success">Selesai</span></td>
                             </tr>
@@ -1334,10 +1580,22 @@ function get_initials($name) {
                     </table>
                 </div>
             </div>
+        </div>
 
-           
         <!-- Reward Tab -->
         <div class="tab-content" id="rewardTab">
+            <?php if(isset($redeem_success)): ?>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> <?php echo $redeem_success; ?>
+                </div>
+            <?php endif; ?>
+            
+            <?php if(isset($redeem_error)): ?>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-circle"></i> <?php echo $redeem_error; ?>
+                </div>
+            <?php endif; ?>
+
             <div class="card">
                 <div class="section-title">
                     <h3>Poin Reward Saya</h3>
@@ -1352,7 +1610,7 @@ function get_initials($name) {
                         <div class="stat-icon">
                             <i class="fas fa-star"></i>
                         </div>
-                        <div class="stat-value"><?php echo number_format($total_poin); ?></div>
+                        <div class="stat-value"><?php echo number_format($total_poin_history); ?></div>
                         <div class="stat-label">Poin Tersedia</div>
                     </div>
                     <div class="stat-card">
@@ -1377,34 +1635,41 @@ function get_initials($name) {
                     <h3>Katalog Reward</h3>
                 </div>
                 <div class="quick-actions">
-                    <div class="action-card">
-                        <div class="action-icon">
-                            <i class="fas fa-shopping-bag"></i>
+                    <?php if(empty($reward_data)): ?>
+                        <div style="text-align: center; padding: 40px; color: #777;">
+                            <i class="fas fa-gift" style="font-size: 3rem; margin-bottom: 15px; color: #ddd;"></i>
+                            <p>Belum ada reward yang tersedia</p>
                         </div>
-                        <h3>Voucher Belanja</h3>
-                        <p>100 Poin</p>
-                    </div>
-                    <div class="action-card">
-                        <div class="action-icon">
-                            <i class="fas fa-mug-hot"></i>
-                        </div>
-                        <h3>Voucher Kopi</h3>
-                        <p>50 Poin</p>
-                    </div>
-                    <div class="action-card">
-                        <div class="action-icon">
-                            <i class="fas fa-film"></i>
-                        </div>
-                        <h3>Voucher Bioskop</h3>
-                        <p>150 Poin</p>
-                    </div>
-                    <div class="action-card">
-                        <div class="action-icon">
-                            <i class="fas fa-utensils"></i>
-                        </div>
-                        <h3>Voucher Restoran</h3>
-                        <p>200 Poin</p>
-                    </div>
+                    <?php else: ?>
+                        <?php foreach($reward_data as $reward): ?>
+                            <?php 
+                            $can_redeem = $total_poin_history >= $reward['poin_dibutuhkan'];
+                            $card_class = $can_redeem ? 'reward-card' : 'reward-card disabled';
+                            ?>
+                            <div class="<?php echo $card_class; ?>" onclick="<?php echo $can_redeem ? 'showRedeemConfirm(' . $reward['id'] . ', ' . $reward['poin_dibutuhkan'] . ')' : ''; ?>">
+                                <span class="reward-category"><?php echo $reward['kategori']; ?></span>
+                                
+                                <?php if(!empty($reward['gambar'])): ?>
+                                    <img src="../uploads/reward/<?php echo $reward['gambar']; ?>" alt="<?php echo htmlspecialchars($reward['nama_reward']); ?>" class="reward-image">
+                                <?php else: ?>
+                                    <div class="reward-icon">
+                                        <i class="fas fa-gift"></i>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <h3><?php echo htmlspecialchars($reward['nama_reward']); ?></h3>
+                                <p><?php echo htmlspecialchars($reward['deskripsi']); ?></p>
+                                <div class="reward-points"><?php echo number_format($reward['poin_dibutuhkan']); ?> Poin</div>
+                                <div class="reward-stock">Stok: <?php echo $reward['stok']; ?></div>
+                                
+                                <?php if($can_redeem): ?>
+                                    <button class="btn btn-primary btn-sm">Tukar Sekarang</button>
+                                <?php else: ?>
+                                    <button class="btn btn-outline btn-sm" disabled>Poin Tidak Cukup</button>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -1419,21 +1684,43 @@ function get_initials($name) {
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body">
-                <form id="pickupForm">
+            <form id="pickupForm" method="POST" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <!-- Tampilkan pesan sukses/error -->
+                    <?php if(isset($success_message)): ?>
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i> <?php echo $success_message; ?>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <?php if(isset($error_message)): ?>
+                        <div class="alert alert-error">
+                            <i class="fas fa-exclamation-circle"></i> <?php echo $error_message; ?>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <?php if(isset($upload_error)): ?>
+                        <div class="alert alert-error">
+                            <i class="fas fa-exclamation-circle"></i> <?php echo $upload_error; ?>
+                        </div>
+                    <?php endif; ?>
+
                     <div class="form-group">
                         <label for="jenis_sampah">Jenis Sampah</label>
                         <select class="form-control" id="jenis_sampah" name="jenis_sampah" required>
                             <option value="">Pilih Jenis Sampah</option>
-                            <option value="Plastik">Plastik</option>
-                            <option value="Logam">Logam</option>
-                            <option value="Organik">Organik</option>
+                            <option value="Plastik" <?php echo (isset($_POST['jenis_sampah']) && $_POST['jenis_sampah'] == 'Plastik') ? 'selected' : ''; ?>>Plastik</option>
+                            <option value="Logam" <?php echo (isset($_POST['jenis_sampah']) && $_POST['jenis_sampah'] == 'Logam') ? 'selected' : ''; ?>>Logam</option>
+                            <option value="Organik" <?php echo (isset($_POST['jenis_sampah']) && $_POST['jenis_sampah'] == 'Organik') ? 'selected' : ''; ?>>Organik</option>
+                            <option value="Kertas" <?php echo (isset($_POST['jenis_sampah']) && $_POST['jenis_sampah'] == 'Kertas') ? 'selected' : ''; ?>>Kertas</option>
+                            <option value="Kaca" <?php echo (isset($_POST['jenis_sampah']) && $_POST['jenis_sampah'] == 'Kaca') ? 'selected' : ''; ?>>Kaca</option>
+                            <option value="Elektronik" <?php echo (isset($_POST['jenis_sampah']) && $_POST['jenis_sampah'] == 'Elektronik') ? 'selected' : ''; ?>>Elektronik</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label for="alamat_jemput">Alamat Penjemputan</label>
-                        <textarea class="form-control" id="alamat_jemput" name="alamat_jemput" rows="3" required placeholder="Masukkan alamat lengkap penjemputan sampah"><?php echo htmlspecialchars($alamat); ?></textarea>
+                        <textarea class="form-control" id="alamat_jemput" name="alamat_jemput" rows="3" required placeholder="Masukkan alamat lengkap penjemputan sampah"><?php echo isset($_POST['alamat_jemput']) ? htmlspecialchars($_POST['alamat_jemput']) : htmlspecialchars($alamat); ?></textarea>
                     </div>
                     
                     <div class="form-group">
@@ -1441,7 +1728,7 @@ function get_initials($name) {
                         <div class="file-upload" id="fileUploadArea">
                             <i class="fas fa-cloud-upload-alt"></i>
                             <p>Klik atau seret gambar ke sini</p>
-                            <small>Format yang didukung: JPG, PNG (Maks. 5MB)</small>
+                            <small>Format yang didukung: JPG, PNG, GIF (Maks. 5MB)</small>
                             <input type="file" id="foto_sampah" name="foto_sampah" accept="image/*" style="display: none;">
                         </div>
                         <div class="file-preview" id="filePreview">
@@ -1454,16 +1741,41 @@ function get_initials($name) {
                     
                     <div class="form-group">
                         <label for="catatan">Catatan (Opsional)</label>
-                        <textarea class="form-control" id="catatan" name="catatan" rows="2" placeholder="Tambahkan catatan jika diperlukan..."></textarea>
+                        <textarea class="form-control" id="catatan" name="catatan" rows="2" placeholder="Tambahkan catatan jika diperlukan..."><?php echo isset($_POST['catatan']) ? htmlspecialchars($_POST['catatan']) : ''; ?></textarea>
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline" id="cancelPickup">Batal</button>
-                <button class="btn btn-primary" id="submitPickup">
-                    <i class="fas fa-paper-plane"></i> Ajukan Penjemputan
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" id="cancelPickup">Batal</button>
+                    <button type="submit" name="submit_pickup" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> Ajukan Penjemputan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Konfirmasi Redeem -->
+    <div class="modal" id="redeemModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Tukar Poin Reward</h3>
+                <button class="modal-close" id="closeRedeemModal">
+                    <i class="fas fa-times"></i>
                 </button>
             </div>
+            <form id="redeemForm" method="POST">
+                <div class="modal-body">
+                    <p>Apakah Anda yakin ingin menukar poin untuk reward ini?</p>
+                    <div id="redeemDetails"></div>
+                    <input type="hidden" id="rewardId" name="reward_id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" id="cancelRedeem">Batal</button>
+                    <button type="submit" name="redeem_reward" class="btn btn-primary">
+                        <i class="fas fa-check"></i> Ya, Tukar Poin
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1482,7 +1794,6 @@ function get_initials($name) {
         const viewAllTransactionsBtn = document.getElementById('viewAllTransactions');
         const filterTransactionsBtn = document.getElementById('filterTransactions');
         const exportTransactionsBtn = document.getElementById('exportTransactions');
-        const redeemRewardBtn = document.getElementById('redeemReward');
         const toast = document.getElementById('toast');
         const toastMessage = document.getElementById('toastMessage');
         const navLinksElements = document.querySelectorAll('.nav-link');
@@ -1498,18 +1809,30 @@ function get_initials($name) {
         const pickupModal = document.getElementById('pickupModal');
         const closeModal = document.getElementById('closeModal');
         const cancelPickup = document.getElementById('cancelPickup');
-        const submitPickup = document.getElementById('submitPickup');
         const fileUploadArea = document.getElementById('fileUploadArea');
         const fileInput = document.getElementById('foto_sampah');
         const filePreview = document.getElementById('filePreview');
         const previewImage = document.getElementById('previewImage');
         const removeImageBtn = document.getElementById('removeImage');
-        const pickupForm = document.getElementById('pickupForm');
+
+        // Redeem modal elements
+        const redeemModal = document.getElementById('redeemModal');
+        const closeRedeemModal = document.getElementById('closeRedeemModal');
+        const cancelRedeem = document.getElementById('cancelRedeem');
+        const redeemDetails = document.getElementById('redeemDetails');
+        const rewardIdInput = document.getElementById('rewardId');
 
         // Initialize the application
         function init() {
             setupEventListeners();
             updateGreeting();
+            
+            // Auto open modal jika ada error
+            <?php if(isset($error_message) || isset($upload_error)): ?>
+                setTimeout(() => {
+                    openPickupModal();
+                }, 500);
+            <?php endif; ?>
             
             // Show welcome message
             setTimeout(() => {
@@ -1557,11 +1880,6 @@ function get_initials($name) {
                 showToast('Data transaksi berhasil diexport');
             });
             
-            // Redeem reward
-            redeemRewardBtn.addEventListener('click', () => {
-                showToast('Poin reward berhasil ditukar');
-            });
-            
             // Quick actions
             schedulePickupBtn.addEventListener('click', openPickupModal);
             
@@ -1580,7 +1898,10 @@ function get_initials($name) {
             // Modal events
             closeModal.addEventListener('click', closePickupModal);
             cancelPickup.addEventListener('click', closePickupModal);
-            submitPickup.addEventListener('click', submitPickupForm);
+            
+            // Redeem modal events
+            closeRedeemModal.addEventListener('click', closeRedeemModal);
+            cancelRedeem.addEventListener('click', closeRedeemModal);
             
             // File upload handling
             fileUploadArea.addEventListener('click', () => {
@@ -1629,6 +1950,24 @@ function get_initials($name) {
                     filterHistoryByPeriod(period);
                 });
             });
+        }
+
+        // Show redeem confirmation modal
+        function showRedeemConfirm(rewardId, poinDibutuhkan) {
+            rewardIdInput.value = rewardId;
+            redeemDetails.innerHTML = `
+                <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; margin: 15px 0;">
+                    <p><strong>Poin yang akan dikurangi:</strong> ${poinDibutuhkan} Poin</p>
+                    <p><strong>Poin Anda saat ini:</strong> <?php echo $total_poin_history; ?> Poin</p>
+                    <p><strong>Sisa poin setelah penukaran:</strong> <?php echo $total_poin_history - poinDibutuhkan; ?> Poin</p>
+                </div>
+            `;
+            redeemModal.classList.add('active');
+        }
+
+        // Close redeem modal
+        function closeRedeemModal() {
+            redeemModal.classList.remove('active');
         }
 
         // Filter history berdasarkan periode
@@ -1691,24 +2030,8 @@ function get_initials($name) {
         // Close pickup modal
         function closePickupModal() {
             pickupModal.classList.remove('active');
-            // Reset form
-            pickupForm.reset();
+            // Reset form preview (form data akan direset oleh PHP)
             filePreview.style.display = 'none';
-        }
-
-        // Submit pickup form
-        function submitPickupForm() {
-            const jenisSampah = document.getElementById('jenis_sampah').value;
-            const alamatJemput = document.getElementById('alamat_jemput').value;
-            
-            if (!jenisSampah || !alamatJemput) {
-                showToast('Harap lengkapi semua field yang wajib diisi', 'error');
-                return;
-            }
-            
-            // Simulate form submission
-            showToast('Jadwal penjemputan berhasil diajukan!');
-            closePickupModal();
         }
 
         // Handle scroll for navbar effect
@@ -1775,7 +2098,7 @@ function get_initials($name) {
         function refreshData() {
             // Show loading state
             const originalText = refreshDataBtn.innerHTML;
-            refreshDataBtn.innerHTML = '<div class="loading"></div> Memuat...';
+            refreshDataBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memuat...';
             refreshDataBtn.disabled = true;
             
             // Simulate API call
