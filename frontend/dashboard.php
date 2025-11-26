@@ -21,7 +21,7 @@ mysqli_stmt_bind_result($user_query, $nama_lengkap, $alamat_email, $nomor_telepo
 mysqli_stmt_fetch($user_query);
 mysqli_stmt_close($user_query);
 
-// Ambil statistik user dari transaksi_sampah - SESUAIKAN DENGAN STRUKTUR TABEL
+// Ambil statistik user dari transaksi_sampah
 $stats_query = mysqli_prepare($connect, "
     SELECT 
         COALESCE(SUM(berat), 0) as berat,
@@ -37,7 +37,7 @@ mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_transak
 mysqli_stmt_fetch($stats_query);
 mysqli_stmt_close($stats_query);
 
-// ==== BAGIAN BARU: Handle Form Submit Jadwal Penjemputan ====
+// Handle Form Submit Jadwal Penjemputan
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_pickup'])) {
     $jenis_sampah = mysqli_real_escape_string($connect, $_POST['jenis_sampah']);
     $alamat_jemput = mysqli_real_escape_string($connect, $_POST['alamat_jemput']);
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_pickup'])) {
     mysqli_stmt_close($insert_query);
 }
 
-// ==== BAGIAN BARU: Ambil data reward dari database ====
+// Ambil data reward dari database
 $reward_query = mysqli_prepare($connect, "
     SELECT id, nama_reward, deskripsi, poin_dibutuhkan, stok, gambar, kategori 
     FROM reward 
@@ -110,7 +110,7 @@ while($row = mysqli_fetch_assoc($reward_result)) {
 }
 mysqli_stmt_close($reward_query);
 
-// ==== BAGIAN BARU: Handle Redeem Reward ====
+// Handle Redeem Reward
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
     $reward_id = mysqli_real_escape_string($connect, $_POST['reward_id']);
     
@@ -132,12 +132,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
         mysqli_begin_transaction($connect);
         
         try {
-            // Kurangi poin user di transaksi_sampah - SESUAIKAN DENGAN TABEL
+            // Kurangi poin user di transaksi_sampah
             $insert_transaksi = mysqli_prepare($connect, "
                 INSERT INTO transaksi_sampah (id_anggota, jenis_sampah, berat, harga_per_kg, total, status, total_poin, catatan) 
                 VALUES (?, 'Penukaran Reward', 0, 0, 0, 'berhasil', ?, ?)
             ");
-            $poin_negative = -$poin_dibutuhkan; // Buat nilai negatif
+            $poin_negative = -$poin_dibutuhkan;
             $keterangan = "Penukaran reward: " . $reward_name;
             mysqli_stmt_bind_param($insert_transaksi, "iis", $user_id, $poin_negative, $keterangan);
             mysqli_stmt_execute($insert_transaksi);
@@ -169,7 +169,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
             mysqli_stmt_close($stats_query);
             
         } catch (Exception $e) {
-            // Rollback transaction jika ada error
             mysqli_rollback($connect);
             $redeem_error = "Gagal menukar reward: " . $e->getMessage();
         }
@@ -182,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
     }
 }
 
-// ==== BAGIAN BARU: Ambil riwayat jadwal penjemputan user ====
+// Ambil riwayat jadwal penjemputan user
 $jadwal_query = mysqli_prepare($connect, "
     SELECT jenis_sampah, alamat_jemput, foto_sampah, catatan, status, tanggal_jemput, waktu_jemput, created_at 
     FROM jadwal_penjemputan 
@@ -199,7 +198,7 @@ while($row = mysqli_fetch_assoc($jadwal_result)) {
 }
 mysqli_stmt_close($jadwal_query);
 
-// Ambil transaksi terbaru user - SESUAIKAN DENGAN STRUKTUR TABEL
+// Ambil transaksi terbaru user
 $transaksi_query = mysqli_prepare($connect, "
     SELECT tanggal, jenis_sampah, berat, status, total_poin, total
     FROM transaksi_sampah
@@ -247,7 +246,7 @@ function get_initials($name) {
     return substr($initials, 0, 2);
 }
 
-// Fungsi untuk mendapatkan badge class berdasarkan status - SESUAIKAN DENGAN TABEL
+// Fungsi untuk mendapatkan badge class berdasarkan status
 function get_status_badge($status) {
     switch($status) {
         case 'berhasil':
@@ -261,7 +260,7 @@ function get_status_badge($status) {
     }
 }
 
-// Fungsi untuk mendapatkan status text - SESUAIKAN DENGAN TABEL
+// Fungsi untuk mendapatkan status text
 function get_status_text($status) {
     switch($status) {
         case 'berhasil':
@@ -311,7 +310,7 @@ function get_status_text($status) {
             line-height: 1.6;
         }
 
-        /* Header & Navbar */
+        /* Header & Navbar - FIXED */
         .header {
             background-color: var(--white);
             box-shadow: var(--shadow);
@@ -325,7 +324,6 @@ function get_status_text($status) {
 
         .header.scrolled {
             padding: 5px 0;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
         .navbar {
@@ -335,6 +333,7 @@ function get_status_text($status) {
             padding: 12px 5%;
             max-width: 1400px;
             margin: 0 auto;
+            position: relative;
         }
 
         .logo {
@@ -425,6 +424,7 @@ function get_status_text($status) {
             font-size: 1.3rem;
             color: var(--primary);
             cursor: pointer;
+            padding: 5px;
         }
 
         /* Main Content */
@@ -1078,24 +1078,26 @@ function get_status_text($status) {
             text-transform: uppercase;
         }
 
-        /* Responsive Styles */
+        /* Responsive Styles - IMPROVED */
         @media (max-width: 992px) {
             .nav-links {
-                display: none;
-                position: absolute;
-                top: 100%;
-                left: 0;
-                right: 0;
+                position: fixed;
+                top: 70px;
+                left: -100%;
+                width: 280px;
+                height: calc(100vh - 70px);
                 background-color: var(--white);
                 flex-direction: column;
-                padding: 15px;
+                padding: 20px;
                 box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-                border-top: 1px solid var(--gray);
+                transition: var(--transition);
                 gap: 10px;
+                z-index: 1001;
+                overflow-y: auto;
             }
             
             .nav-links.active {
-                display: flex;
+                left: 0;
             }
             
             .mobile-menu-btn {
@@ -1104,6 +1106,10 @@ function get_status_text($status) {
             
             .dashboard-content {
                 grid-template-columns: 1fr;
+            }
+
+            .nav-right {
+                gap: 10px;
             }
         }
 
@@ -1141,6 +1147,10 @@ function get_status_text($status) {
             .monthly-stats {
                 grid-template-columns: 1fr;
             }
+
+            .user-details {
+                display: none;
+            }
         }
 
         @media (max-width: 576px) {
@@ -1149,7 +1159,7 @@ function get_status_text($status) {
             }
             
             .nav-right {
-                gap: 10px;
+                gap: 5px;
             }
             
             .btn-group {
@@ -1159,6 +1169,31 @@ function get_status_text($status) {
             .quick-actions {
                 grid-template-columns: 1fr;
             }
+
+            .modal-content {
+                margin: 10px;
+                width: calc(100% - 20px);
+            }
+
+            .logo h1 {
+                font-size: 1.1rem;
+            }
+        }
+
+        /* Overlay for mobile menu */
+        .nav-overlay {
+            display: none;
+            position: fixed;
+            top: 70px;
+            left: 0;
+            width: 100%;
+            height: calc(100vh - 70px);
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .nav-overlay.active {
+            display: block;
         }
     </style>
 </head>
@@ -1192,6 +1227,9 @@ function get_status_text($status) {
             </div>
         </nav>
     </header>
+
+    <!-- Overlay for mobile menu -->
+    <div class="nav-overlay" id="navOverlay"></div>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -1331,7 +1369,7 @@ function get_status_text($status) {
                     <h3>Target Bulanan</h3>
                 </div>
                 <?php
-                $target_bulanan = 50; // Target dalam Kg
+                $target_bulanan = 50;
                 $persentase = min(100, ($total_berat / $target_bulanan) * 100);
                 $sisa_target = max(0, $target_bulanan - $total_berat);
                 ?>
@@ -1562,20 +1600,6 @@ function get_status_text($status) {
                                 <td>5</td>
                                 <td><span class="badge badge-success">Selesai</span></td>
                             </tr>
-                            <tr>
-                                <td><?php echo date('F Y', strtotime('-4 months')); ?></td>
-                                <td>24.1</td>
-                                <td>241</td>
-                                <td>4</td>
-                                <td><span class="badge badge-success">Selesai</span></td>
-                            </tr>
-                            <tr>
-                                <td><?php echo date('F Y', strtotime('-5 months')); ?></td>
-                                <td>23.4</td>
-                                <td>234</td>
-                                <td>4</td>
-                                <td><span class="badge badge-success">Selesai</span></td>
-                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -1686,7 +1710,6 @@ function get_status_text($status) {
             </div>
             <form id="pickupForm" method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
-                    <!-- Tampilkan pesan sukses/error -->
                     <?php if(isset($success_message)): ?>
                         <div class="alert alert-success">
                             <i class="fas fa-check-circle"></i> <?php echo $success_message; ?>
@@ -1790,6 +1813,7 @@ function get_status_text($status) {
         const header = document.getElementById('header');
         const navLinks = document.getElementById('navLinks');
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const navOverlay = document.getElementById('navOverlay');
         const refreshDataBtn = document.getElementById('refreshData');
         const viewAllTransactionsBtn = document.getElementById('viewAllTransactions');
         const filterTransactionsBtn = document.getElementById('filterTransactions');
@@ -1847,6 +1871,7 @@ function get_status_text($status) {
             
             // Mobile menu toggle
             mobileMenuBtn.addEventListener('click', toggleMobileMenu);
+            navOverlay.addEventListener('click', toggleMobileMenu);
             
             // Navigation links
             navLinksElements.forEach(link => {
@@ -1950,6 +1975,13 @@ function get_status_text($status) {
                     filterHistoryByPeriod(period);
                 });
             });
+
+            // Close modal when clicking outside
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal')) {
+                    e.target.classList.remove('active');
+                }
+            });
         }
 
         // Show redeem confirmation modal
@@ -2030,7 +2062,7 @@ function get_status_text($status) {
         // Close pickup modal
         function closePickupModal() {
             pickupModal.classList.remove('active');
-            // Reset form preview (form data akan direset oleh PHP)
+            // Reset form preview
             filePreview.style.display = 'none';
         }
 
@@ -2046,13 +2078,16 @@ function get_status_text($status) {
         // Toggle mobile menu
         function toggleMobileMenu() {
             navLinks.classList.toggle('active');
+            navOverlay.classList.toggle('active');
             const icon = mobileMenuBtn.querySelector('i');
             if (navLinks.classList.contains('active')) {
                 icon.classList.remove('fa-bars');
                 icon.classList.add('fa-times');
+                document.body.style.overflow = 'hidden';
             } else {
                 icon.classList.remove('fa-times');
                 icon.classList.add('fa-bars');
+                document.body.style.overflow = '';
             }
         }
 
