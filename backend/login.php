@@ -35,20 +35,27 @@ if(isset($_POST['login'])) {
                 
                 // Verifikasi password
                 if(password_verify($password, $hashed_password)) {
-                    // Login berhasil
+                    // Login berhasil - UPDATE LAST_LOGIN
+                    $update_query = mysqli_prepare($connect, "UPDATE user SET terakhir_login = NOW() WHERE id = ?");
+                    mysqli_stmt_bind_param($update_query, "i", $user['id']);
+                    mysqli_stmt_execute($update_query);
+                    mysqli_stmt_close($update_query);
+                    
+                    // Set session
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['nama'] = $user['nama'];  
                     $_SESSION['alamat_email'] = $user['email'];
                     $_SESSION['logged_in'] = true;
+                    $_SESSION['terakhir_login'] = date('Y-m-d H:i:s'); // Simpan waktu login di session juga
                     
                     // Redirect langsung tanpa SweetAlert (lebih reliable)
-                if ($email == 'basada964@gmail.com') {
-                     header("Location: ../frontend/dasmin.php");
-                } else {
-                    header("Location: ../frontend/dashboard.php");
-                }
-                exit;
+                    if ($email == 'basada964@gmail.com') {
+                         header("Location: ../frontend/dasmin.php");
                     } else {
+                        header("Location: ../frontend/dashboard.php");
+                    }
+                    exit;
+                } else {
                     $errors['password'] = "Password salah";
                 }
             } else {

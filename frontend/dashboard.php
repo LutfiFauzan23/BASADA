@@ -213,67 +213,23 @@ $transaksi_data = [];
 while($row = mysqli_fetch_assoc($transaksi_result)) {
     $transaksi_data[] = $row;
 }
-mysqli_stmt_close($transaksi_query);
+// mysqli_stmt_close($transaksi_query);
 
-// Ambil semua transaksi untuk tab transaksi
-$all_transaksi_query = mysqli_prepare($connect, "
-    SELECT tanggal, jenis_sampah, berat, status, total_poin, total, harga_per_kg
-    FROM transaksi_sampah
-    WHERE id_anggota = ? 
-    ORDER BY tanggal DESC
-");
-mysqli_stmt_bind_param($all_transaksi_query, "i", $user_id);
-mysqli_stmt_execute($all_transaksi_query);
-$all_transaksi_result = mysqli_stmt_get_result($all_transaksi_query);
-$all_transaksi_data = [];
-while($row = mysqli_fetch_assoc($all_transaksi_result)) {
-    $all_transaksi_data[] = $row;
-}
-mysqli_stmt_close($all_transaksi_query);
+// // Format currency
+// function format_currency($number) {
+//     return 'Rp ' . number_format($number, 0, ',', '.');
+// }
 
-// Format currency
-function format_currency($number) {
-    return 'Rp ' . number_format($number, 0, ',', '.');
-}
-
-// Get initials for avatar
-function get_initials($name) {
-    $names = explode(' ', $name);
-    $initials = '';
-    foreach($names as $name) {
-        $initials .= strtoupper(substr($name, 0, 1));
-    }
-    return substr($initials, 0, 2);
-}
-
-// Fungsi untuk mendapatkan badge class berdasarkan status
-function get_status_badge($status) {
-    switch($status) {
-        case 'berhasil':
-            return 'badge-success';
-        case 'menunggu':
-            return 'badge-warning';
-        case 'gagal':
-            return 'badge-danger';
-        default:
-            return 'badge-danger';
-    }
-}
-
-// Fungsi untuk mendapatkan status text
-function get_status_text($status) {
-    switch($status) {
-        case 'berhasil':
-            return 'Berhasil';
-        case 'menunggu':
-            return 'Menunggu';
-        case 'gagal':
-            return 'Gagal';
-        default:
-            return $status;
-    }
-}
-?>
+// // Get initials for avatar
+// function get_initials($name) {
+//     $names = explode(' ', $name);
+//     $initials = '';
+//     foreach($names as $name) {
+//         $initials .= strtoupper(substr($name, 0, 1));
+//     }
+//     return substr($initials, 0, 2);
+// }
+// ?>
 
 <!DOCTYPE html>
 <html lang="id">
@@ -969,6 +925,26 @@ function get_status_text($status) {
         /* Alert Styles */
         .alert {
             padding: 12px 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+
+        /* Alert Styles */
+        .alert {
+            padding: 12px 15px;
             border-radius: var(--radius);
             margin-bottom: 15px;
             font-size: 0.9rem;
@@ -1208,7 +1184,8 @@ function get_status_text($status) {
             <div class="nav-links" id="navLinks">
                 <a href="#" class="nav-link active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
                 <a href="#" class="nav-link" data-tab="profile"><i class="fas fa-user"></i> Profil Saya</a>
-                <a href="#" class="nav-link" data-tab="transaksi"><i class="fas fa-exchange-alt"></i> Transaksi</a>
+                <a href="#" class="nav-link" data-tab="transaksiBaru"><i class="fas fa-plus-circle"></i> Transaksi Baru</a>
+                <a href="#" class="nav-link" data-tab="transaksi"><i class="fas fa-exchange-alt"></i> Riwayat Transaksi</a>
                 <a href="#" class="nav-link" data-tab="history"><i class="fas fa-chart-line"></i> History Poin</a>
                 <a href="#" class="nav-link" data-tab="reward"><i class="fas fa-gift"></i> Reward</a>
             </div>
@@ -1460,6 +1437,68 @@ function get_status_text($status) {
             </div>
         </div>
 
+        <!-- Transaksi Baru Tab -->
+        <div class="tab-content" id="transaksiBaruTab">
+            <div class="card">
+                <div class="section-title">
+                    <h3>Ajukan Transaksi Sampah Baru</h3>
+                </div>
+                
+                <?php if(isset($_GET['success'])): ?>
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($_GET['success']); ?>
+                    </div>
+                <?php endif; ?>
+                
+                <form method="POST" action="" id="transaksiForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="jenis_sampah">Jenis Sampah *</label>
+                            <select class="form-control" id="jenis_sampah" name="jenis_sampah" required>
+                                <option value="">Pilih Jenis Sampah</option>
+                                <option value="Plastik">Plastik (Rp 2.000/kg)</option>
+                                <option value="Logam">Logam (Rp 5.000/kg)</option>
+                                <option value="Kertas">Kertas (Rp 1.500/kg)</option>
+                                <option value="Kaca">Kaca (Rp 1.000/kg)</option>
+                                <option value="Organik">Organik (Rp 1.000/kg)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="berat">Berat Sampah (kg) *</label>
+                            <input type="number" class="form-control" id="berat" name="berat" min="0.1" step="0.1" placeholder="Contoh: 2.5" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="alamat_jemput">Alamat Penjemputan *</label>
+                        <textarea class="form-control" id="alamat_jemput" name="alamat_jemput" rows="3" required placeholder="Masukkan alamat lengkap penjemputan sampah"><?php echo htmlspecialchars($alamat); ?></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="catatan">Catatan (Opsional)</label>
+                        <textarea class="form-control" id="catatan" name="catatan" rows="2" placeholder="Tambahkan catatan jika diperlukan..."></textarea>
+                    </div>
+                    
+                    <!-- Preview Kalkulasi -->
+                    <div class="card" style="background-color: #f8f9fa; margin-bottom: 20px;">
+                        <div class="section-title">
+                            <h3>Perhitungan Transaksi</h3>
+                        </div>
+                        <div id="calculationPreview">
+                            <p style="text-align: center; color: #6c757d;">Pilih jenis dan berat sampah untuk melihat perhitungan</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="text-align: center;">
+                        <button type="submit" name="submit_transaksi" class="btn btn-primary" style="padding: 12px 30px; font-size: 1rem;">
+                            <i class="fas fa-paper-plane"></i> Ajukan Transaksi
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Transaksi Tab -->
         <div class="tab-content" id="transaksiTab">
             <div class="card">
@@ -1604,8 +1643,8 @@ function get_status_text($status) {
                     </table>
                 </div>
             </div>
-        </div>
 
+           
         <!-- Reward Tab -->
         <div class="tab-content" id="rewardTab">
             <?php if(isset($redeem_success)): ?>
@@ -1975,31 +2014,6 @@ function get_status_text($status) {
                     filterHistoryByPeriod(period);
                 });
             });
-
-            // Close modal when clicking outside
-            document.addEventListener('click', (e) => {
-                if (e.target.classList.contains('modal')) {
-                    e.target.classList.remove('active');
-                }
-            });
-        }
-
-        // Show redeem confirmation modal
-        function showRedeemConfirm(rewardId, poinDibutuhkan) {
-            rewardIdInput.value = rewardId;
-            redeemDetails.innerHTML = `
-                <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; margin: 15px 0;">
-                    <p><strong>Poin yang akan dikurangi:</strong> ${poinDibutuhkan} Poin</p>
-                    <p><strong>Poin Anda saat ini:</strong> <?php echo $total_poin_history; ?> Poin</p>
-                    <p><strong>Sisa poin setelah penukaran:</strong> <?php echo $total_poin_history - poinDibutuhkan; ?> Poin</p>
-                </div>
-            `;
-            redeemModal.classList.add('active');
-        }
-
-        // Close redeem modal
-        function closeRedeemModal() {
-            redeemModal.classList.remove('active');
         }
 
         // Filter history berdasarkan periode

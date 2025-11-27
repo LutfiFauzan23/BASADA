@@ -173,7 +173,55 @@ function getMonthName($monthNumber) {
     return $months[$monthNumber - 1] ?? $monthNumber;
 }
 ?>
+<?php
+// Fungsi untuk mengecek status user berdasarkan last_login
+function get_user_status($terakhir_login, $current_user_id = null) {
+    if (!$terakhir_login) {
+        return 'Tidak Aktif';
+    }
+    
+    $terakhir_login_time = strtotime($terakhir_login);
+    $current_time = time();
+    $diff_minutes = ($current_time - $terakhir_login_time) / 60; // Difference in minutes
+    
+    // Jika user sedang login saat ini = Online
+    if ($current_user_id && isset($_SESSION['user_id']) && $current_user_id == $_SESSION['user_id']) {
+        return 'Online';
+    }
+    // Jika login dalam 5 menit terakhir = Online
+    elseif ($diff_minutes <= 5) {
+        return 'Online';
+    }
+    // Jika login dalam 24 jam terakhir = Aktif
+    elseif ($diff_minutes <= 1440) { // 24 jam = 1440 menit
+        return 'Aktif';
+    } else {
+        return 'Tidak Aktif';
+    }
+}
 
+// Contoh penggunaan di dashboard admin (dasmin.php):
+$members_query = mysqli_prepare($connect, "
+    SELECT id, nama, email, tanggal_daftar, terakhir_login 
+    FROM user 
+    ORDER BY id DESC 
+    LIMIT 5
+");
+mysqli_stmt_execute($members_query);
+mysqli_stmt_bind_result($members_query, $member_id, $member_nama, $member_email, $member_tanggal_daftar, $member_last_login);
+$recentMembers = [];
+while(mysqli_stmt_fetch($members_query)) {
+    $recentMembers[] = [
+        'id' => $member_id,
+        'nama' => $member_nama,
+        'email' => $member_email,
+        'tanggal_daftar' => $member_tanggal_daftar,
+        'terakhir_login' => $member_last_login, 
+        'status' => get_user_status($member_last_login, $member_id)
+    ];
+}
+mysqli_stmt_close($members_query);
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -914,7 +962,7 @@ function getMonthName($monthNumber) {
                                     <td><?php echo htmlspecialchars($member['nama']); ?></td>
                                     <td><?php echo htmlspecialchars($member['email']); ?></td>
                                     <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
-                                    <td><span class="badge badge-success"><?php echo $member['status'] === 'active' ? 'Aktif' : 'Tidak Aktif'; ?></span></td>
+                                    <td><span class="badge badge-success"><?php echo $member['status'] === 'status' ? 'Aktif' : 'Tidak Aktif'; ?></span></td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -946,7 +994,7 @@ function getMonthName($monthNumber) {
                                     <td><?php echo date('d M Y', strtotime($waste['tanggal'])); ?></td>
                                     <td><?php echo htmlspecialchars($waste['jenis_sampah']); ?></td>
                                     <td><?php echo $waste['berat']; ?> kg</td>
-                                    <td><?php echo number_format($waste['total_harga']); ?></td>
+                                    <td><?php echo number_format($waste['total'] = $waste['berat'] * $waste['harga_per_kg']); ?></td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -988,12 +1036,18 @@ function getMonthName($monthNumber) {
                         </thead>
                         <tbody id="allMembersTable">
                             <?php foreach($allMembers as $member): ?>
+                            <?php
+                            $member_status = get_number_status($member['login_terakhir'], $member['id']);
+                            ?>
                             <tr>
                                 <td><?php echo $member['id']; ?></td>
                                 <td><?php echo htmlspecialchars($member['nama']); ?></td>
                                 <td><?php echo htmlspecialchars($member['email']); ?></td>
                                 <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
-                                <td><span class="badge <?php echo $member['status'] === 'active' ? 'badge-success' : 'badge-danger'; ?>"><?php echo $member['status'] === 'active' ? 'Aktif' : 'Nonaktif'; ?></span></td>
+                                <td>
+                                    <span class="badge <?php echo $member_status['badge']; ?>">
+                                        <?php echo $member_status['status']; ?>
+                                    </span>
                                 <td>
                                     <div class="action-buttons">
                                         <button class="btn btn-danger btn-sm delete-member-btn" data-id="<?php echo $member['id']; ?>">
@@ -1044,7 +1098,7 @@ function getMonthName($monthNumber) {
                                 <td><?php echo htmlspecialchars($waste['jenis_sampah']); ?></td>
                                 <td><?php echo $waste['berat']; ?> kg</td>
                                 <td><?php echo number_format($waste['harga_per_kg']); ?></td>
-                                <td><?php echo number_format($waste['total_harga']); ?></td>
+                                <td><?php echo number_format($waste['total'] = $waste['berat'] * $waste['harga_per_kg']); ?></td>
                                 <td>
                                     <div class="action-buttons">
                                         <button class="btn btn-danger btn-sm delete-waste-btn" data-id="<?php echo $waste['id']; ?>">
@@ -1181,7 +1235,7 @@ function getMonthName($monthNumber) {
             </div>
         </div>
 
-        Database Tab
+        <!-- Database Tab -->
         <div class="tab-content" id="databaseTab">
             <div class="card">
                 <div class="section-title">
@@ -1564,16 +1618,15 @@ function getMonthName($monthNumber) {
             });
         }
 
-        // Delete member
-        // Delete member dengan debugging
-        function deleteMember(id) {
-            if (confirm('Apakah Anda yakin ingin menghapus anggota ini?')) {
-            console.log('Attempting to delete member with ID:', id);
-        
+        // Delete member function
+function deleteMember(id) {
+    console.log('Starting delete process for user ID:', id);
+    
+    if (confirm('Apakah Anda yakin ingin menghapus anggota ini? Tindakan ini tidak dapat dibatalkan!')) {
         // Show loading state
         const deleteBtn = document.querySelector(`.delete-member-btn[data-id="${id}"]`);
         const originalText = deleteBtn.innerHTML;
-        deleteBtn.innerHTML = '<div class="loading"></div>';
+        deleteBtn.innerHTML = '<div class="loading"></div> Menghapus...';
         deleteBtn.disabled = true;
 
         // AJAX request untuk menghapus anggota
@@ -1582,10 +1635,13 @@ function getMonthName($monthNumber) {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `id=${id}`
+            body: 'id=' + id
         })
         .then(response => {
             console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
             return response.json();
         })
         .then(data => {
@@ -1593,10 +1649,14 @@ function getMonthName($monthNumber) {
             
             if (data.success) {
                 showToast('Anggota berhasil dihapus');
-                // Refresh the page after a short delay
+                // Remove the row from table immediately
+                const row = deleteBtn.closest('tr');
+                row.style.backgroundColor = '#ffebee';
                 setTimeout(() => {
-                    location.reload();
-                }, 1500);
+                    row.remove();
+                    // Update stats
+                    updateStatsAfterDelete();
+                }, 1000);
             } else {
                 showToast('Gagal menghapus anggota: ' + data.message, 'error');
                 // Restore button
@@ -1606,11 +1666,30 @@ function getMonthName($monthNumber) {
         })
         .catch(error => {
             console.error('Fetch error:', error);
-            showToast('Terjadi kesalahan saat menghapus anggota', 'error');
+            showToast('Terjadi kesalahan jaringan: ' + error.message, 'error');
             // Restore button
             deleteBtn.innerHTML = originalText;
             deleteBtn.disabled = false;
         });
+    }
+}
+
+        // Function to update stats after delete
+    function updateStatsAfterDelete() {
+    // Update total members count
+    const totalMembersEl = document.getElementById('totalMembers');
+    const currentTotal = parseInt(totalMembersEl.textContent);
+    totalMembersEl.textContent = currentTotal - 1;
+    
+    // Update active members count
+    const activeMembersEl = document.getElementById('activeMembers');
+    const currentActive = parseInt(activeMembersEl.textContent);
+    activeMembersEl.textContent = currentActive - 1;
+    
+    // Update sync info
+    const syncedMembers = document.getElementById('syncedMembers');
+    if (syncedMembers) {
+        syncedMembers.textContent = (currentTotal - 1) + ' orang';
     }
 }
 
