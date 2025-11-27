@@ -30,14 +30,14 @@ function getTotalMembers($connect) {
 }
 
 function getTotalWaste($connect) {
-    $query = "SELECT SUM(berat) as total FROM transaksi_sampah";
+    $query = "SELECT SUM(berat) as total FROM transaksi_sampah WHERE status = 'approved'";
     $result = mysqli_query($connect, $query);
     $row = mysqli_fetch_assoc($result);
     return $row['total'] ? $row['total'] : 0;
 }
 
 function getTotalIncome($connect) {
-    $query = "SELECT SUM(total) as total FROM transaksi_sampah";
+    $query = "SELECT SUM(total) as total FROM transaksi_sampah WHERE status = 'approved'";
     $result = mysqli_query($connect, $query);
     $row = mysqli_fetch_assoc($result);
     return $row['total'] ? $row['total'] : 0;
@@ -71,7 +71,7 @@ function getAllMembers($connect) {
 }
 
 function getWasteData($connect, $limit = 5) {
-    $query = "SELECT ts.id, ts.tanggal, u.nama, ts.jenis_sampah, ts.berat, ts.harga_per_kg, ts.total
+    $query = "SELECT ts.id, ts.tanggal, u.nama, ts.jenis_sampah, ts.berat, ts.harga_per_kg, ts.total, ts.status
               FROM transaksi_sampah ts 
               JOIN user u ON ts.id_anggota = u.id 
               ORDER BY ts.tanggal DESC 
@@ -85,7 +85,7 @@ function getWasteData($connect, $limit = 5) {
 }
 
 function getAllWasteData($connect) {
-    $query = "SELECT ts.id, ts.tanggal, u.nama, ts.jenis_sampah, ts.berat, ts.harga_per_kg, ts.total
+    $query = "SELECT ts.id, ts.tanggal, u.nama, ts.jenis_sampah, ts.berat, ts.harga_per_kg, ts.total, ts.status
               FROM transaksi_sampah ts 
               JOIN user u ON ts.id_anggota = u.id 
               ORDER BY ts.tanggal DESC";
@@ -95,6 +95,27 @@ function getAllWasteData($connect) {
         $waste[] = $row;
     }
     return $waste;
+}
+
+function getPendingWasteData($connect) {
+    $query = "SELECT ts.id, ts.tanggal, u.nama, ts.jenis_sampah, ts.berat, ts.harga_per_kg, ts.total, ts.status
+              FROM transaksi_sampah ts 
+              JOIN user u ON ts.id_anggota = u.id 
+              WHERE ts.status = 'pending'
+              ORDER BY ts.tanggal DESC";
+    $result = mysqli_query($connect, $query);
+    $waste = [];
+    while($row = mysqli_fetch_assoc($result)) {
+        $waste[] = $row;
+    }
+    return $waste;
+}
+
+function getPendingWasteCount($connect) {
+    $query = "SELECT COUNT(*) as total FROM transaksi_sampah WHERE status = 'pending'";
+    $result = mysqli_query($connect, $query);
+    $row = mysqli_fetch_assoc($result);
+    return $row['total'];
 }
 
 function getWastePrices($connect) {
@@ -132,6 +153,8 @@ $recentMembers = getRecentMembers($connect);
 $allMembers = getAllMembers($connect);
 $recentWaste = getWasteData($connect);
 $allWasteData = getAllWasteData($connect);
+$pendingWasteData = getPendingWasteData($connect);
+$pendingWasteCount = getPendingWasteCount($connect);
 $wastePrices = getWastePrices($connect);
 $incomeData = getIncomeData($connect);
 
@@ -143,7 +166,8 @@ $currentYear = date('Y');
 
 $monthQuery = "SELECT SUM(total) as pendapatan, SUM(berat) as sampah 
                FROM transaksi_sampah 
-               WHERE MONTH(tanggal) = $currentMonth AND YEAR(tanggal) = $currentYear";
+               WHERE MONTH(tanggal) = $currentMonth AND YEAR(tanggal) = $currentYear 
+               AND status = 'approved'";
 $monthResult = mysqli_query($connect, $monthQuery);
 if($monthRow = mysqli_fetch_assoc($monthResult)) {
     $monthIncome = $monthRow['pendapatan'] ? $monthRow['pendapatan'] : 0;
@@ -171,6 +195,34 @@ function getMonthName($monthNumber) {
         'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
     return $months[$monthNumber - 1] ?? $monthNumber;
+}
+
+// Fungsi untuk mendapatkan badge status
+function getStatusBadge($status) {
+    switch($status) {
+        case 'pending':
+            return 'badge-warning';
+        case 'approved':
+            return 'badge-success';
+        case 'rejected':
+            return 'badge-danger';
+        default:
+            return 'badge-warning';
+    }
+}
+
+// Fungsi untuk mendapatkan teks status
+function getStatusText($status) {
+    switch($status) {
+        case 'pending':
+            return 'Menunggu ACC';
+        case 'approved':
+            return 'Disetujui';
+        case 'rejected':
+            return 'Ditolak';
+        default:
+            return 'Menunggu ACC';
+    }
 }
 ?>
 <?php
@@ -500,6 +552,16 @@ mysqli_stmt_close($members_query);
 
         .btn-danger:hover {
             background-color: #d32f2f;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background-color: #4caf50;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #45a049;
             transform: translateY(-2px);
         }
 
@@ -859,6 +921,260 @@ mysqli_stmt_close($members_query);
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+
+        /* Notification Card Styles */
+        .notification-container {
+             position: fixed;
+                top: 100px;
+                right: 20px;
+                z-index: 9999;
+                max-width: 400px;
+            }
+
+            .notification-card {
+                background: var(--white);
+                border-radius: var(--radius);
+                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+                padding: 20px;
+                margin-bottom: 15px;
+                border-left: 4px solid var(--primary);
+                transform: translateX(400px);
+                opacity: 0;
+                transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                display: flex;
+                align-items: flex-start;
+                gap: 15px;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .notification-card.show {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            .notification-card.hide {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            .notification-card.success {
+                border-left-color: #4caf50;
+                background: linear-gradient(135deg, #f1f8e9 0%, #e8f5e9 100%);
+            }
+
+            .notification-card.error {
+                border-left-color: #f44336;
+                background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);
+            }
+
+            .notification-card.warning {
+                border-left-color: #ff9800;
+                background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%);
+            }
+
+            .notification-card.info {
+                border-left-color: #2196f3;
+                background: linear-gradient(135deg, #e3f2fd 0%, #e1f5fe 100%);
+            }
+
+            .notification-icon {
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                font-size: 1.5rem;
+            }
+
+            .notification-card.success .notification-icon {
+                background: rgba(76, 175, 80, 0.1);
+                color: #4caf50;
+            }
+
+            .notification-card.error .notification-icon {
+                background: rgba(244, 67, 54, 0.1);
+                color: #f44336;
+            }
+
+            .notification-card.warning .notification-icon {
+                background: rgba(255, 152, 0, 0.1);
+                color: #ff9800;
+            }
+
+            .notification-card.info .notification-icon {
+                background: rgba(33, 150, 243, 0.1);
+                color: #2196f3;
+            }
+
+            .notification-content {
+                flex: 1;
+            }
+
+            .notification-title {
+                font-weight: 600;
+                font-size: 1rem;
+                margin-bottom: 5px;
+                color: var(--text);
+            }
+
+            .notification-message {
+                font-size: 0.9rem;
+                color: var(--dark-gray);
+                line-height: 1.4;
+            }
+
+            .notification-close {
+                background: none;
+                border: none;
+                color: var(--dark-gray);
+                cursor: pointer;
+                font-size: 1rem;
+                padding: 5px;
+                border-radius: 4px;
+                transition: var(--transition);
+                flex-shrink: 0;
+            }
+
+            .notification-close:hover {
+                background: rgba(0, 0, 0, 0.1);
+                color: var(--text);
+            }
+
+            .notification-progress {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                height: 3px;
+                background: currentColor;
+                opacity: 0.3;
+                width: 100%;
+                transform: scaleX(1);
+                transform-origin: left;
+                animation: progressBar 5s linear forwards;
+            }
+
+            @keyframes progressBar {
+                from { transform: scaleX(1); }
+                to { transform: scaleX(0); }
+            }
+
+            /* Confirmation Modal Styles */
+            .confirmation-modal {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 9999;
+                justify-content: center;
+                align-items: center;
+                backdrop-filter: blur(5px);
+            }
+
+            .confirmation-card {
+                background: var(--white);
+                border-radius: 15px;
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                padding: 30px;
+                max-width: 450px;
+                width: 90%;
+                text-align: center;
+                transform: scale(0.7);
+                opacity: 0;
+                transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            }
+
+            .confirmation-card.show {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            .confirmation-icon {
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 20px;
+                font-size: 2rem;
+            }
+
+            .confirmation-icon.warning {
+                background: rgba(255, 152, 0, 0.1);
+                color: #ff9800;
+                border: 2px solid rgba(255, 152, 0, 0.2);
+            }
+
+            .confirmation-icon.danger {
+                background: rgba(244, 67, 54, 0.1);
+                color: #f44336;
+                border: 2px solid rgba(244, 67, 54, 0.2);
+            }
+
+            .confirmation-title {
+                font-size: 1.4rem;
+                font-weight: 600;
+                margin-bottom: 10px;
+                color: var(--text);
+            }
+
+            .confirmation-message {
+                color: var(--dark-gray);
+                margin-bottom: 25px;
+                line-height: 1.5;
+            }
+
+            .confirmation-buttons {
+                display: flex;
+                gap: 15px;
+                justify-content: center;
+            }
+
+            .confirmation-btn {
+                padding: 12px 30px;
+                border: none;
+                border-radius: 8px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                min-width: 120px;
+            }
+
+            .confirmation-btn.cancel {
+                background: var(--gray);
+                color: var(--text);
+            }
+
+            .confirmation-btn.cancel:hover {
+                background: var(--dark-gray);
+                transform: translateY(-2px);
+            }
+
+            .confirmation-btn.confirm {
+                background: var(--primary);
+                color: white;
+            }
+
+            .confirmation-btn.confirm:hover {
+                background: var(--primary-dark);
+                transform: translateY(-2px);
+            }
+
+            .confirmation-btn.danger {
+                background: #f44336;
+                color: white;
+            }
+
+            .confirmation-btn.danger:hover {
+                background: #d32f2f;
+                transform: translateY(-2px);
+            }
     </style>
 </head>
 <body>
@@ -931,6 +1247,13 @@ mysqli_stmt_close($members_query);
                     <div class="stat-value" id="activeMembers"><?php echo $activeMembers; ?></div>
                     <div class="stat-label">Anggota Aktif</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-value" id="pendingWaste"><?php echo $pendingWasteCount; ?></div>
+                    <div class="stat-label">Menunggu ACC</div>
+                </div>
             </div>
 
             <div class="dashboard-content">
@@ -986,6 +1309,7 @@ mysqli_stmt_close($members_query);
                                     <th>Jenis Sampah</th>
                                     <th>Berat (kg)</th>
                                     <th>Total (Rp)</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="recentWasteTable">
@@ -994,7 +1318,12 @@ mysqli_stmt_close($members_query);
                                     <td><?php echo date('d M Y', strtotime($waste['tanggal'])); ?></td>
                                     <td><?php echo htmlspecialchars($waste['jenis_sampah']); ?></td>
                                     <td><?php echo $waste['berat']; ?> kg</td>
-                                    <td><?php echo number_format($waste['total'] = $waste['berat'] * $waste['harga_per_kg']); ?></td>
+                                    <td><?php echo number_format($waste['total']); ?></td>
+                                    <td>
+                                        <span class="badge <?php echo getStatusBadge($waste['status']); ?>">
+                                            <?php echo getStatusText($waste['status']); ?>
+                                        </span>
+                                    </td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -1037,7 +1366,8 @@ mysqli_stmt_close($members_query);
                         <tbody id="allMembersTable">
                             <?php foreach($allMembers as $member): ?>
                             <?php
-                            $member_status = get_number_status($member['login_terakhir'], $member['id']);
+                            $last_login = isset($member['terakhir_login']) ? $member['terakhir_login'] : $member['tanggal_daftar'];
+                    $member_status = get_user_status($last_login, $member['id']);
                             ?>
                             <tr>
                                 <td><?php echo $member['id']; ?></td>
@@ -1045,9 +1375,10 @@ mysqli_stmt_close($members_query);
                                 <td><?php echo htmlspecialchars($member['email']); ?></td>
                                 <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
                                 <td>
-                                    <span class="badge <?php echo $member_status['badge']; ?>">
-                                        <?php echo $member_status['status']; ?>
+                                    <span class="badge <?php echo $member_status === 'Online' ? 'badge-success' : ($member_status === 'Aktif' ? 'badge-warning' : 'badge-danger'); ?>">
+                                        <?php echo $member_status; ?>
                                     </span>
+                                </td>
                                 <td>
                                     <div class="action-buttons">
                                         <button class="btn btn-danger btn-sm delete-member-btn" data-id="<?php echo $member['id']; ?>">
@@ -1065,9 +1396,72 @@ mysqli_stmt_close($members_query);
 
         <!-- Sampah Tab -->
         <div class="tab-content" id="sampahTab">
+            <!-- Card untuk Permintaan Penjualan yang Menunggu ACC -->
             <div class="card">
                 <div class="section-title">
-                    <h3>Data Sampah</h3>
+                    <h3>Permintaan Penjualan Sampah <span class="badge badge-warning" id="pendingCount"><?php echo $pendingWasteCount; ?> Menunggu</span></h3>
+                    <div class="btn-group">
+                        <button class="btn btn-primary btn-sm" id="refreshPending">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>Anggota</th>
+                                <th>Jenis Sampah</th>
+                                <th>Berat (kg)</th>
+                                <th>Harga (Rp)</th>
+                                <th>Total (Rp)</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingWasteTable">
+                            <?php foreach($pendingWasteData as $waste): ?>
+                            <tr>
+                                <td><?php echo date('d M Y', strtotime($waste['tanggal'])); ?></td>
+                                <td><?php echo htmlspecialchars($waste['nama']); ?></td>
+                                <td><?php echo htmlspecialchars($waste['jenis_sampah']); ?></td>
+                                <td><?php echo $waste['berat']; ?> kg</td>
+                                <td><?php echo number_format($waste['harga_per_kg']); ?></td>
+                                <td><?php echo number_format($waste['total']); ?></td>
+                                <td>
+                                    <span class="badge <?php echo getStatusBadge($waste['status']); ?>">
+                                        <?php echo getStatusText($waste['status']); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-success btn-sm approve-waste-btn" data-id="<?php echo $waste['id']; ?>">
+                                            <i class="fas fa-check"></i> Setujui
+                                        </button>
+                                        <button class="btn btn-danger btn-sm reject-waste-btn" data-id="<?php echo $waste['id']; ?>">
+                                            <i class="fas fa-times"></i> Tolak
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                            <?php if(empty($pendingWasteData)): ?>
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: var(--dark-gray);">
+                                    Tidak ada permintaan penjualan yang menunggu persetujuan
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Card untuk Data Sampah yang Sudah Disetujui -->
+            <div class="card">
+                <div class="section-title">
+                    <h3>Data Sampah Disetujui</h3>
                     <div class="btn-group">
                         <button class="btn btn-primary btn-sm" id="addWasteBtn">
                             <i class="fas fa-plus"></i> Tambah Data
@@ -1087,18 +1481,23 @@ mysqli_stmt_close($members_query);
                                 <th>Berat (kg)</th>
                                 <th>Harga (Rp)</th>
                                 <th>Total (Rp)</th>
+                                <th>Status</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
                         <tbody id="wasteTable">
                             <?php foreach($allWasteData as $waste): ?>
+                            <?php if($waste['status'] == 'approved'): ?>
                             <tr>
                                 <td><?php echo date('d M Y', strtotime($waste['tanggal'])); ?></td>
                                 <td><?php echo htmlspecialchars($waste['nama']); ?></td>
                                 <td><?php echo htmlspecialchars($waste['jenis_sampah']); ?></td>
                                 <td><?php echo $waste['berat']; ?> kg</td>
                                 <td><?php echo number_format($waste['harga_per_kg']); ?></td>
-                                <td><?php echo number_format($waste['total'] = $waste['berat'] * $waste['harga_per_kg']); ?></td>
+                                <td><?php echo number_format($waste['total']); ?></td>
+                                <td>
+                                    <span class="badge badge-success">Disetujui</span>
+                                </td>
                                 <td>
                                     <div class="action-buttons">
                                         <button class="btn btn-danger btn-sm delete-waste-btn" data-id="<?php echo $waste['id']; ?>">
@@ -1107,12 +1506,14 @@ mysqli_stmt_close($members_query);
                                     </div>
                                 </td>
                             </tr>
+                            <?php endif; ?>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
             </div>
 
+            <!-- Card untuk Pengaturan Harga Sampah -->
             <div class="card">
                 <div class="section-title">
                     <h3>Pengaturan Harga Sampah</h3>
@@ -1139,7 +1540,7 @@ mysqli_stmt_close($members_query);
                             <?php foreach($wastePrices as $price): ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($price['jenis_sampah']); ?></td>
-                                <td><?php echo number_format($price['harga_per_kg']); ?></td>
+                                <td><?php echo number_format($price['harga']); ?></td>
                                 <td>
                                     <span class="badge <?php echo $price['status'] === 'active' ? 'badge-success' : 'badge-danger'; ?>">
                                         <?php echo $price['status'] === 'active' ? 'Aktif' : 'Nonaktif'; ?>
@@ -1222,10 +1623,10 @@ mysqli_stmt_close($members_query);
                             <?php foreach($incomeData as $income): ?>
                             <tr>
                                 <td><?php echo getMonthName($income['bulan']); ?></td>
-                                <td><?php echo number_format($income['total_sampah'], 1); ?> kg</td>
+                                <td><?php echo number_format($income['total_berat'], 1); ?> kg</td>
                                 <td><?php echo number_format($income['total_pendapatan']); ?></td>
                                 <td>
-                                    <span class="badge badge-success"><?php echo $income['status']; ?></span>
+                                    <span class="badge badge-success"><?php echo $income['status_pembayaran']; ?></span>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -1353,8 +1754,8 @@ mysqli_stmt_close($members_query);
                     <select id="wasteType" class="form-control">
                         <?php foreach($wastePrices as $price): ?>
                         <?php if($price['status'] === 'active'): ?>
-                        <option value="<?php echo $price['jenis_sampah']; ?>" data-price="<?php echo $price['harga_per_kg']; ?>">
-                            <?php echo htmlspecialchars($price['jenis_sampah']); ?> (Rp <?php echo number_format($price['harga_per_kg']); ?>)
+                        <option value="<?php echo $price['jenis_sampah']; ?>" data-price="<?php echo $price['harga']; ?>">
+                            <?php echo htmlspecialchars($price['jenis_sampah']); ?> (Rp <?php echo number_format($price['harga']); ?>)
                         </option>
                         <?php endif; ?>
                         <?php endforeach; ?>
@@ -1398,6 +1799,7 @@ mysqli_stmt_close($members_query);
                 activeMembers: <?php echo $activeMembers; ?>,
                 monthIncome: <?php echo $monthIncome ?: 0; ?>,
                 monthWaste: <?php echo $monthWaste ?: 0; ?>,
+                pendingWasteCount: <?php echo $pendingWasteCount; ?>,
                 growth: "+12%"
             }
         };
@@ -1408,6 +1810,7 @@ mysqli_stmt_close($members_query);
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
         const refreshDataBtn = document.getElementById('refreshData');
         const refreshMembersBtn = document.getElementById('refreshMembers');
+        const refreshPendingBtn = document.getElementById('refreshPending');
         const viewAllMembersBtn = document.getElementById('viewAllMembers');
         const viewAllWasteBtn = document.getElementById('viewAllWaste');
         const addPriceBtn = document.getElementById('addPriceBtn');
@@ -1479,6 +1882,7 @@ mysqli_stmt_close($members_query);
             // Refresh data
             refreshDataBtn.addEventListener('click', refreshData);
             refreshMembersBtn.addEventListener('click', refreshMembers);
+            refreshPendingBtn.addEventListener('click', refreshPending);
             
             // View all members
             viewAllMembersBtn.addEventListener('click', () => {
@@ -1563,6 +1967,21 @@ mysqli_stmt_close($members_query);
                     deletePrice(id);
                 });
             });
+
+            // Add event listeners for approve/reject buttons
+            document.querySelectorAll('.approve-waste-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                    approveWaste(id);
+                });
+            });
+
+            document.querySelectorAll('.reject-waste-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                    rejectWaste(id);
+                });
+            });
         }
 
         // Calculate total price
@@ -1618,80 +2037,380 @@ mysqli_stmt_close($members_query);
             });
         }
 
-        // Delete member function
-function deleteMember(id) {
-    console.log('Starting delete process for user ID:', id);
-    
-    if (confirm('Apakah Anda yakin ingin menghapus anggota ini? Tindakan ini tidak dapat dibatalkan!')) {
-        // Show loading state
-        const deleteBtn = document.querySelector(`.delete-member-btn[data-id="${id}"]`);
-        const originalText = deleteBtn.innerHTML;
-        deleteBtn.innerHTML = '<div class="loading"></div> Menghapus...';
-        deleteBtn.disabled = true;
+       // Notification System
+class NotificationSystem {
+    constructor() {
+        this.container = document.getElementById('notificationContainer');
+        this.notificationId = 0;
+    }
 
-        // AJAX request untuk menghapus anggota
-        fetch('delete_member.php', {
+    showNotification(title, message, type = 'success', duration = 5000) {
+        const id = this.notificationId++;
+        const notification = document.createElement('div');
+        notification.className = `notification-card ${type}`;
+        notification.id = `notification-${id}`;
+        
+        const icons = {
+            success: 'fas fa-check-circle',
+            error: 'fas fa-exclamation-circle',
+            warning: 'fas fa-exclamation-triangle',
+            info: 'fas fa-info-circle'
+        };
+
+        notification.innerHTML = `
+            <div class="notification-icon">
+                <i class="${icons[type]}"></i>
+            </div>
+            <div class="notification-content">
+                <div class="notification-title">${title}</div>
+                <div class="notification-message">${message}</div>
+            </div>
+            <button class="notification-close" onclick="notificationSystem.closeNotification(${id})">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="notification-progress"></div>
+        `;
+
+        this.container.appendChild(notification);
+
+        // Show animation
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 100);
+
+        // Auto close
+        if (duration > 0) {
+            setTimeout(() => {
+                this.closeNotification(id);
+            }, duration);
+        }
+
+        return id;
+    }
+
+    closeNotification(id) {
+        const notification = document.getElementById(`notification-${id}`);
+        if (notification) {
+            notification.classList.remove('show');
+            notification.classList.add('hide');
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 400);
+        }
+    }
+
+    // Confirmation dialog
+    showConfirmation(title, message, type = 'warning') {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirmationModal');
+            const card = document.getElementById('confirmationCard');
+            const icon = document.getElementById('confirmationIcon');
+            const titleEl = document.getElementById('confirmationTitle');
+            const messageEl = document.getElementById('confirmationMessage');
+            const cancelBtn = document.getElementById('confirmCancel');
+            const okBtn = document.getElementById('confirmOk');
+
+            // Set content
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            
+            // Set type
+            icon.className = `confirmation-icon ${type}`;
+            okBtn.className = `confirmation-btn ${type === 'danger' ? 'danger' : 'confirm'}`;
+
+            // Show modal
+            modal.style.display = 'flex';
+            setTimeout(() => {
+                card.classList.add('show');
+            }, 100);
+
+            // Event handlers
+            const handleResult = (result) => {
+                card.classList.remove('show');
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    resolve(result);
+                }, 300);
+                
+                // Remove event listeners
+                cancelBtn.onclick = null;
+                okBtn.onclick = null;
+                modal.onclick = null;
+            };
+
+            cancelBtn.onclick = () => handleResult(false);
+            okBtn.onclick = () => handleResult(true);
+            
+            // Close when clicking outside
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    handleResult(false);
+                }
+            };
+        });
+    }
+}
+
+// Initialize notification system
+const notificationSystem = new NotificationSystem();
+
+// Replace showToast function with new notification system
+function showToast(message, type = 'success') {
+    const titles = {
+        success: 'Berhasil',
+        error: 'Error',
+        warning: 'Peringatan',
+        info: 'Informasi'
+    };
+    
+    notificationSystem.showNotification(titles[type], message, type);
+}
+
+// Updated delete member function with confirmation modal
+function deleteMember(id) {
+    const nama = document.querySelector(`.delete-member-btn[data-id="${id}"]`)
+        .closest('tr')
+        .querySelector('td:nth-child(2)')
+        .textContent;
+
+    notificationSystem.showConfirmation(
+        'Hapus Anggota',
+        `Apakah Anda yakin ingin menghapus anggota <strong>"${nama}"</strong>? Semua data transaksi sampah anggota ini juga akan dihapus. Tindakan ini tidak dapat dibatalkan!`,
+        'danger'
+    ).then(confirmed => {
+        if (confirmed) {
+            // Show loading notification
+            const loadingId = notificationSystem.showNotification(
+                'Memproses',
+                'Sedang menghapus anggota...',
+                'info',
+                0 // No auto close
+            );
+
+            // AJAX request untuk menghapus anggota
+            fetch('../backend/delete_member.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'id=' + id
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Close loading notification
+                notificationSystem.closeNotification(loadingId);
+                
+                if (data.success) {
+                    notificationSystem.showNotification(
+                        'Berhasil Dihapus',
+                        `Anggota "${memberName}" berhasil dihapus dari sistem`,
+                        'success'
+                    );
+                    
+                    // Remove the row from table
+                    const row = document.querySelector(`.delete-member-btn[data-id="${id}"]`).closest('tr');
+                    row.style.backgroundColor = '#ffebee';
+                    setTimeout(() => {
+                        row.remove();
+                        updateStatsAfterDelete();
+                    }, 1000);
+                } else {
+                    notificationSystem.showNotification(
+                        'Gagal Menghapus',
+                        `Gagal menghapus anggota: ${data.message}`,
+                        'error'
+                    );
+                }
+            })
+            .catch(error => {
+                notificationSystem.closeNotification(loadingId);
+                notificationSystem.showNotification(
+                    'Kesalahan Jaringan',
+                    'Terjadi kesalahan saat menghubungi server',
+                    'error'
+                );
+                console.error('Fetch error:', error);
+            });
+        }
+    });
+}
+
+// Updated approve waste function
+function approveWaste(id) {
+    notificationSystem.showConfirmation(
+        'Setujui Penjualan',
+        'Apakah Anda yakin ingin menyetujui penjualan sampah ini?',
+        'warning'
+    ).then(confirmed => {
+        if (confirmed) {
+            const loadingId = notificationSystem.showNotification(
+                'Memproses',
+                'Sedang menyetujui penjualan...',
+                'info',
+                0
+            );
+
+            fetch('approve_waste.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `id=${id}&action=approve`
+            })
+            .then(response => response.json())
+            .then(data => {
+                notificationSystem.closeNotification(loadingId);
+                
+                if (data.success) {
+                    notificationSystem.showNotification(
+                        'Disetujui',
+                        'Penjualan sampah berhasil disetujui',
+                        'success'
+                    );
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    notificationSystem.showNotification(
+                        'Gagal',
+                        `Gagal menyetujui penjualan: ${data.message}`,
+                        'error'
+                    );
+                }
+            })
+            .catch(error => {
+                notificationSystem.closeNotification(loadingId);
+                notificationSystem.showNotification(
+                    'Kesalahan',
+                    'Terjadi kesalahan saat memproses',
+                    'error'
+                );
+            });
+        }
+    });
+}
+
+// Updated reject waste function
+function rejectWaste(id) {
+    notificationSystem.showConfirmation(
+        'Tolak Penjualan',
+        'Apakah Anda yakin ingin menolak penjualan sampah ini?',
+        'danger'
+    ).then(confirmed => {
+        if (confirmed) {
+            const loadingId = notificationSystem.showNotification(
+                'Memproses',
+                'Sedang menolak penjualan...',
+                'info',
+                0
+            );
+
+            fetch('approve_waste.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `id=${id}&action=reject`
+            })
+            .then(response => response.json())
+            .then(data => {
+                notificationSystem.closeNotification(loadingId);
+                
+                if (data.success) {
+                    notificationSystem.showNotification(
+                        'Ditolak',
+                        'Penjualan sampah berhasil ditolak',
+                        'success'
+                    );
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    notificationSystem.showNotification(
+                        'Gagal',
+                        `Gagal menolak penjualan: ${data.message}`,
+                        'error'
+                    );
+                }
+            })
+            .catch(error => {
+                notificationSystem.closeNotification(loadingId);
+                notificationSystem.showNotification(
+                    'Kesalahan',
+                    'Terjadi kesalahan saat memproses',
+                    'error'
+                );
+            });
+        }
+    });
+}
+
+// Update other functions to use new notification system
+function savePriceChanges() {
+    if (currentEditId) {
+        const loadingId = notificationSystem.showNotification(
+            'Menyimpan',
+            'Sedang menyimpan perubahan harga...',
+            'info',
+            0
+        );
+
+        const formData = new FormData();
+        formData.append('id', currentEditId);
+        formData.append('jenis_sampah', editJenis.value);
+        formData.append('harga', editHarga.value);
+        formData.append('status', editStatus.value);
+
+        fetch('update_price.php', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'id=' + id
+            body: formData
         })
-        .then(response => {
-            console.log('Response status:', response.status);
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-            console.log('Response data:', data);
+            notificationSystem.closeNotification(loadingId);
             
             if (data.success) {
-                showToast('Anggota berhasil dihapus');
-                // Remove the row from table immediately
-                const row = deleteBtn.closest('tr');
-                row.style.backgroundColor = '#ffebee';
-                setTimeout(() => {
-                    row.remove();
-                    // Update stats
-                    updateStatsAfterDelete();
-                }, 1000);
+                notificationSystem.showNotification(
+                    'Berhasil Disimpan',
+                    'Harga sampah berhasil diperbarui',
+                    'success'
+                );
+                setTimeout(() => location.reload(), 1000);
             } else {
-                showToast('Gagal menghapus anggota: ' + data.message, 'error');
-                // Restore button
-                deleteBtn.innerHTML = originalText;
-                deleteBtn.disabled = false;
+                notificationSystem.showNotification(
+                    'Gagal Menyimpan',
+                    `Gagal memperbarui harga: ${data.message}`,
+                    'error'
+                );
             }
         })
         .catch(error => {
-            console.error('Fetch error:', error);
-            showToast('Terjadi kesalahan jaringan: ' + error.message, 'error');
-            // Restore button
-            deleteBtn.innerHTML = originalText;
-            deleteBtn.disabled = false;
+            notificationSystem.closeNotification(loadingId);
+            notificationSystem.showNotification(
+                'Kesalahan',
+                'Terjadi kesalahan saat menyimpan',
+                'error'
+            );
         });
     }
 }
 
         // Function to update stats after delete
-    function updateStatsAfterDelete() {
-    // Update total members count
-    const totalMembersEl = document.getElementById('totalMembers');
-    const currentTotal = parseInt(totalMembersEl.textContent);
-    totalMembersEl.textContent = currentTotal - 1;
-    
-    // Update active members count
-    const activeMembersEl = document.getElementById('activeMembers');
-    const currentActive = parseInt(activeMembersEl.textContent);
-    activeMembersEl.textContent = currentActive - 1;
-    
-    // Update sync info
-    const syncedMembers = document.getElementById('syncedMembers');
-    if (syncedMembers) {
-        syncedMembers.textContent = (currentTotal - 1) + ' orang';
-    }
-}
+        function updateStatsAfterDelete() {
+            // Update total members count
+            const totalMembersEl = document.getElementById('totalMembers');
+            const currentTotal = parseInt(totalMembersEl.textContent);
+            totalMembersEl.textContent = currentTotal - 1;
+            
+            // Update active members count
+            const activeMembersEl = document.getElementById('activeMembers');
+            const currentActive = parseInt(activeMembersEl.textContent);
+            activeMembersEl.textContent = currentActive - 1;
+            
+            // Update sync info
+            const syncedMembers = document.getElementById('syncedMembers');
+            if (syncedMembers) {
+                syncedMembers.textContent = (currentTotal - 1) + ' orang';
+            }
+        }
 
         // Open edit modal
         function openEditModal(id) {
@@ -1699,7 +2418,7 @@ function deleteMember(id) {
             if (price) {
                 currentEditId = id;
                 editJenis.value = price.jenis_sampah;
-                editHarga.value = price.harga_per_kg;
+                editHarga.value = price.harga;
                 editStatus.value = price.status;
                 editPriceModal.style.display = 'flex';
             }
@@ -1725,7 +2444,7 @@ function deleteMember(id) {
                 const formData = new FormData();
                 formData.append('id', currentEditId);
                 formData.append('jenis_sampah', editJenis.value);
-                formData.append('harga_per_kg', editHarga.value);
+                formData.append('harga', editHarga.value);
                 formData.append('status', editStatus.value);
 
                 fetch('update_price.php', {
@@ -1821,11 +2540,67 @@ function deleteMember(id) {
             }
         }
 
+        // Approve waste data
+        function approveWaste(id) {
+            if (confirm('Apakah Anda yakin ingin menyetujui penjualan sampah ini?')) {
+                fetch('approve_waste.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `id=${id}&action=approve`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Penjualan sampah berhasil disetujui');
+                        setTimeout(() => {
+                            location.reload(); // Reload untuk update data terbaru
+                        }, 1000);
+                    } else {
+                        showToast('Gagal menyetujui penjualan: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Terjadi kesalahan saat menyetujui penjualan', 'error');
+                });
+            }
+        }
+
+        // Reject waste data
+        function rejectWaste(id) {
+            if (confirm('Apakah Anda yakin ingin menolak penjualan sampah ini?')) {
+                fetch('approve_waste.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `id=${id}&action=reject`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Penjualan sampah berhasil ditolak');
+                        setTimeout(() => {
+                            location.reload(); // Reload untuk update data terbaru
+                        }, 1000);
+                    } else {
+                        showToast('Gagal menolak penjualan: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Terjadi kesalahan saat menolak penjualan', 'error');
+                });
+            }
+        }
+
         // Add new price
         function addNewPrice() {
             const formData = new FormData();
             formData.append('jenis_sampah', 'Jenis Baru');
-            formData.append('harga_per_kg', 0);
+            formData.append('harga', 0);
             formData.append('status', 'active');
 
             fetch('add_price.php', {
@@ -1916,6 +2691,19 @@ function deleteMember(id) {
             }, 1500);
         }
 
+        // Refresh pending data
+        function refreshPending() {
+            // Show loading state
+            const originalText = refreshPendingBtn.innerHTML;
+            refreshPendingBtn.innerHTML = '<div class="loading"></div> Memuat...';
+            refreshPendingBtn.disabled = true;
+            
+            // Simulate API call
+            setTimeout(() => {
+                location.reload(); // Reload page untuk data terbaru
+            }, 1500);
+        }
+
         // Reset database configuration
         function resetDbConfig() {
             if (confirm('Apakah Anda yakin ingin mengembalikan pengaturan database ke nilai default?')) {
@@ -1984,5 +2772,22 @@ function deleteMember(id) {
         // Initialize the app when DOM is loaded
         document.addEventListener('DOMContentLoaded', init);
     </script>
+    <!-- Notification Container -->
+<div class="notification-container" id="notificationContainer"></div>
+
+<!-- Confirmation Modal -->
+<div class="confirmation-modal" id="confirmationModal">
+    <div class="confirmation-card" id="confirmationCard">
+        <div class="confirmation-icon warning" id="confirmationIcon">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h3 class="confirmation-title" id="confirmationTitle">Konfirmasi Tindakan</h3>
+        <p class="confirmation-message" id="confirmationMessage">Apakah Anda yakin ingin melanjutkan tindakan ini?</p>
+        <div class="confirmation-buttons">
+            <button class="confirmation-btn cancel" id="confirmCancel">Batal</button>
+            <button class="confirmation-btn confirm" id="confirmOk">Ya, Lanjutkan</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
