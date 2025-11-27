@@ -37,13 +37,34 @@ mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_transak
 mysqli_stmt_fetch($stats_query);
 mysqli_stmt_close($stats_query);
 
-// Handle Form Submit Jadwal Penjemputan
+// AMBIL PESAN DARI SESSION SETELAH REDIRECT
+$success_message = isset($_SESSION['success_message']) ? $_SESSION['success_message'] : '';
+$error_message = isset($_SESSION['error_message']) ? $_SESSION['error_message'] : '';
+$success_message_transaksi = isset($_SESSION['success_message_transaksi']) ? $_SESSION['success_message_transaksi'] : '';
+$error_message_transaksi = isset($_SESSION['error_message_transaksi']) ? $_SESSION['error_message_transaksi'] : '';
+$redeem_success = isset($_SESSION['redeem_success']) ? $_SESSION['redeem_success'] : '';
+$redeem_error = isset($_SESSION['redeem_error']) ? $_SESSION['redeem_error'] : '';
+$upload_error = isset($_SESSION['upload_error']) ? $_SESSION['upload_error'] : '';
+
+// HAPUS PESAN DARI SESSION SETELAH DITAMPILKAN
+unset(
+    $_SESSION['success_message'],
+    $_SESSION['error_message'], 
+    $_SESSION['success_message_transaksi'],
+    $_SESSION['error_message_transaksi'],
+    $_SESSION['redeem_success'],
+    $_SESSION['redeem_error'],
+    $_SESSION['upload_error']
+);
+
+// Handle Form Submit Jadwal Penjemputan - MODIFIKASI DENGAN PRG PATTERN
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_pickup'])) {
     $jenis_sampah = mysqli_real_escape_string($connect, $_POST['jenis_sampah']);
     $alamat_jemput = mysqli_real_escape_string($connect, $_POST['alamat_jemput']);
     $catatan = mysqli_real_escape_string($connect, $_POST['catatan']);
     
     $foto_sampah = NULL;
+    $upload_error = '';
     
     // Handle file upload
     if (isset($_FILES['foto_sampah']) && $_FILES['foto_sampah']['error'] === 0) {
@@ -85,17 +106,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_pickup'])) {
     mysqli_stmt_bind_param($insert_query, "issss", $user_id, $jenis_sampah, $alamat_jemput, $foto_sampah, $catatan);
     
     if (mysqli_stmt_execute($insert_query)) {
-        $success_message = "Jadwal penjemputan berhasil diajukan!";
-        // Reset form values setelah sukses
-        $_POST = array();
+        $_SESSION['success_message'] = "Jadwal penjemputan berhasil diajukan!";
     } else {
-        $error_message = "Gagal mengajukan jadwal penjemputan: " . mysqli_error($connect);
+        $_SESSION['error_message'] = "Gagal mengajukan jadwal penjemputan: " . mysqli_error($connect);
+    }
+    
+    // Simpan error upload ke session jika ada
+    if (!empty($upload_error)) {
+        $_SESSION['upload_error'] = $upload_error;
     }
     
     mysqli_stmt_close($insert_query);
+    
+    // ⭐⭐ REDIRECT SETELAH POST - INI SOLUSI UTAMA ⭐⭐
+    header('Location: ' . $_SERVER['PHP_SELF'] . '?success=pickup');
+    exit();
 }
 
-// Handle Transaksi Sampah Baru - DIPERBAIKI
+// Handle Transaksi Sampah Baru - MODIFIKASI DENGAN PRG PATTERN
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_transaksi'])) {
     $jenis_sampah = mysqli_real_escape_string($connect, $_POST['jenis_sampah']);
     $berat = floatval($_POST['berat']);
@@ -117,18 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_transaksi'])) 
     $total = $berat * $harga_per_kg;
     $total_poin = intval($berat * 10); // 10 poin per kg
     
-    // Debug: Lihat nilai variabel
-    error_log("Values: user_id=$user_id, jenis_sampah=$jenis_sampah, berat=$berat, harga_per_kg=$harga_per_kg, total=$total, total_poin=$total_poin, catatan=$catatan");
-    
-    // Insert ke database - PERBAIKI BAGIAN INI
+    // Insert ke database
     $insert_query = mysqli_prepare($connect, "
         INSERT INTO transaksi_sampah (id_anggota, jenis_sampah, berat, harga_per_kg, total, status, total_poin, catatan) 
         VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
     ");
     
     if ($insert_query) {
-        // PERBAIKAN: Sesuaikan tipe data binding dengan benar
-        // "isdddis" berarti: integer, string, double, double, double, integer, string
         mysqli_stmt_bind_param($insert_query, "isdddis", 
             $user_id, 
             $jenis_sampah, 
@@ -140,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_transaksi'])) 
         );
         
         if (mysqli_stmt_execute($insert_query)) {
-            $success_message_transaksi = "Transaksi sampah berhasil diajukan! Menunggu konfirmasi admin.";
+            $_SESSION['success_message_transaksi'] = "Transaksi sampah berhasil diajukan! Menunggu konfirmasi admin.";
             
             // Refresh statistik
             $stats_query = mysqli_prepare($connect, "
@@ -159,15 +182,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_transaksi'])) 
             mysqli_stmt_close($stats_query);
             
         } else {
-            $error_message_transaksi = "Gagal mengajukan transaksi: " . mysqli_error($connect);
+            $_SESSION['error_message_transaksi'] = "Gagal mengajukan transaksi: " . mysqli_error($connect);
         }
         
         mysqli_stmt_close($insert_query);
     } else {
-        $error_message_transaksi = "Gagal menyiapkan query: " . mysqli_error($connect);
+        $_SESSION['error_message_transaksi'] = "Gagal menyiapkan query: " . mysqli_error($connect);
     }
+    
+    // ⭐⭐ REDIRECT SETELAH POST ⭐⭐
+    header('Location: ' . $_SERVER['PHP_SELF'] . '?success=transaksi');
+    exit();
 }
-// Handle Redeem Reward - VERSI DISEDERHANAKAN
+
+// Handle Redeem Reward - MODIFIKASI DENGAN PRG PATTERN
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
     $reward_id = mysqli_real_escape_string($connect, $_POST['reward_id']);
 
@@ -184,9 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
     if (mysqli_stmt_fetch($reward_query)) {
         // Validasi
         if ($stok <= 0) {
-            $redeem_error = "Stok reward sudah habis.";
+            $_SESSION['redeem_error'] = "Stok reward sudah habis.";
         } elseif ($total_poin_history < $poin_dibutuhkan) {
-            $redeem_error = "Poin tidak mencukupi. Anda memiliki {$total_poin_history} poin, butuh {$poin_dibutuhkan} poin.";
+            $_SESSION['redeem_error'] = "Poin tidak mencukupi. Anda memiliki {$total_poin_history} poin, butuh {$poin_dibutuhkan} poin.";
         } else {
             // Mulai transaksi database
             mysqli_begin_transaction($connect);
@@ -211,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
                 
                 // Commit transaksi
                 mysqli_commit($connect);
-                $redeem_success = "Berhasil menukarkan reward: {$reward_name}!";
+                $_SESSION['redeem_success'] = "Berhasil menukarkan reward: {$reward_name}!";
                 
                 // Refresh poin
                 $stats_query = mysqli_prepare($connect, "
@@ -227,13 +255,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
                 
             } catch (Exception $e) {
                 mysqli_rollback($connect);
-                $redeem_error = "Gagal menukarkan reward: " . $e->getMessage();
+                $_SESSION['redeem_error'] = "Gagal menukarkan reward: " . $e->getMessage();
             }
         }
     } else {
-        $redeem_error = "Reward tidak ditemukan.";
+        $_SESSION['redeem_error'] = "Reward tidak ditemukan.";
     }
     mysqli_stmt_close($reward_query);
+    
+    // ⭐⭐ REDIRECT SETELAH POST ⭐⭐
+    header('Location: ' . $_SERVER['PHP_SELF'] . '?success=redeem');
+    exit();
 }
 
 // Query data untuk tampilan
@@ -334,6 +366,7 @@ function get_status_text($status) {
         default: return $status;
     }
 }
+
 // Tambahkan script backup database
 function backupDatabase($connect) {
     $tables = array('user', 'transaksi_sampah', 'jadwal_penjemputan', 'reward');
