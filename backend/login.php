@@ -40,7 +40,7 @@ if(isset($_POST['login'])) {
                     mysqli_stmt_bind_param($update_query, "i", $user['id']);
                     mysqli_stmt_execute($update_query);
                     mysqli_stmt_close($update_query);
-                    
+                
                     // Set session
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['nama'] = $user['nama'];  
