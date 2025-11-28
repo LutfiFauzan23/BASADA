@@ -37,13 +37,34 @@ mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_transak
 mysqli_stmt_fetch($stats_query);
 mysqli_stmt_close($stats_query);
 
-// Handle Form Submit Jadwal Penjemputan
+// AMBIL PESAN DARI SESSION SETELAH REDIRECT
+$success_message = isset($_SESSION['success_message']) ? $_SESSION['success_message'] : '';
+$error_message = isset($_SESSION['error_message']) ? $_SESSION['error_message'] : '';
+$success_message_transaksi = isset($_SESSION['success_message_transaksi']) ? $_SESSION['success_message_transaksi'] : '';
+$error_message_transaksi = isset($_SESSION['error_message_transaksi']) ? $_SESSION['error_message_transaksi'] : '';
+$redeem_success = isset($_SESSION['redeem_success']) ? $_SESSION['redeem_success'] : '';
+$redeem_error = isset($_SESSION['redeem_error']) ? $_SESSION['redeem_error'] : '';
+$upload_error = isset($_SESSION['upload_error']) ? $_SESSION['upload_error'] : '';
+
+// HAPUS PESAN DARI SESSION SETELAH DITAMPILKAN
+unset(
+    $_SESSION['success_message'],
+    $_SESSION['error_message'], 
+    $_SESSION['success_message_transaksi'],
+    $_SESSION['error_message_transaksi'],
+    $_SESSION['redeem_success'],
+    $_SESSION['redeem_error'],
+    $_SESSION['upload_error']
+);
+
+// Handle Form Submit Jadwal Penjemputan - MODIFIKASI DENGAN PRG PATTERN
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_pickup'])) {
     $jenis_sampah = mysqli_real_escape_string($connect, $_POST['jenis_sampah']);
     $alamat_jemput = mysqli_real_escape_string($connect, $_POST['alamat_jemput']);
     $catatan = mysqli_real_escape_string($connect, $_POST['catatan']);
     
     $foto_sampah = NULL;
+    $upload_error = '';
     
     // Handle file upload
     if (isset($_FILES['foto_sampah']) && $_FILES['foto_sampah']['error'] === 0) {
@@ -85,102 +106,169 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_pickup'])) {
     mysqli_stmt_bind_param($insert_query, "issss", $user_id, $jenis_sampah, $alamat_jemput, $foto_sampah, $catatan);
     
     if (mysqli_stmt_execute($insert_query)) {
-        $success_message = "Jadwal penjemputan berhasil diajukan!";
-        // Reset form values setelah sukses
-        $_POST = array();
+        $_SESSION['success_message'] = "Jadwal penjemputan berhasil diajukan!";
     } else {
-        $error_message = "Gagal mengajukan jadwal penjemputan: " . mysqli_error($connect);
+        $_SESSION['error_message'] = "Gagal mengajukan jadwal penjemputan: " . mysqli_error($connect);
+    }
+    
+    // Simpan error upload ke session jika ada
+    if (!empty($upload_error)) {
+        $_SESSION['upload_error'] = $upload_error;
     }
     
     mysqli_stmt_close($insert_query);
-}
-
-// Ambil data reward dari database
-$reward_query = mysqli_prepare($connect, "
-    SELECT id, nama_reward, deskripsi, poin_dibutuhkan, stok, gambar, kategori 
-    FROM reward 
-    WHERE status = 'active' AND stok > 0
-    ORDER BY poin_dibutuhkan ASC
-");
-mysqli_stmt_execute($reward_query);
-$reward_result = mysqli_stmt_get_result($reward_query);
-$reward_data = [];
-while($row = mysqli_fetch_assoc($reward_result)) {
-    $reward_data[] = $row;
-}
-mysqli_stmt_close($reward_query);
-
-// Handle Redeem Reward
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
-    $reward_id = mysqli_real_escape_string($connect, $_POST['reward_id']);
     
-    // Ambil data reward
-    $reward_detail_query = mysqli_prepare($connect, "
-        SELECT nama_reward, poin_dibutuhkan, stok 
-        FROM reward 
-        WHERE id = ? AND status = 'active'
+    // ⭐⭐ REDIRECT SETELAH POST - INI SOLUSI UTAMA ⭐⭐
+    header('Location: ' . $_SERVER['PHP_SELF'] . '?success=pickup');
+    exit();
+}
+
+// Handle Transaksi Sampah Baru - MODIFIKASI DENGAN PRG PATTERN
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_transaksi'])) {
+    $jenis_sampah = mysqli_real_escape_string($connect, $_POST['jenis_sampah']);
+    $berat = floatval($_POST['berat']);
+    $alamat_jemput = mysqli_real_escape_string($connect, $_POST['alamat_jemput']);
+    $catatan = mysqli_real_escape_string($connect, $_POST['catatan']);
+    
+    // Tentukan harga per kg berdasarkan jenis sampah
+    $harga_per_kg = 0;
+    switch($jenis_sampah) {
+        case 'Plastik': $harga_per_kg = 2000; break;
+        case 'Logam': $harga_per_kg = 5000; break;
+        case 'Kertas': $harga_per_kg = 1500; break;
+        case 'Kaca': $harga_per_kg = 1000; break;
+        case 'Organik': $harga_per_kg = 1000; break;
+        default: $harga_per_kg = 1000;
+    }
+    
+    // Hitung total nilai dan poin
+    $total = $berat * $harga_per_kg;
+    $total_poin = intval($berat * 10); // 10 poin per kg
+    
+    // Insert ke database
+    $insert_query = mysqli_prepare($connect, "
+        INSERT INTO transaksi_sampah (id_anggota, jenis_sampah, berat, harga_per_kg, total, status, total_poin, catatan) 
+        VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
     ");
-    mysqli_stmt_bind_param($reward_detail_query, "i", $reward_id);
-    mysqli_stmt_execute($reward_detail_query);
-    mysqli_stmt_bind_result($reward_detail_query, $reward_name, $poin_dibutuhkan, $stok);
-    mysqli_stmt_fetch($reward_detail_query);
-    mysqli_stmt_close($reward_detail_query);
     
-    // Cek apakah poin mencukupi dan stok tersedia
-    if ($total_poin_history >= $poin_dibutuhkan && $stok > 0) {
-        // Mulai transaction
-        mysqli_begin_transaction($connect);
+    if ($insert_query) {
+        mysqli_stmt_bind_param($insert_query, "isdddis", 
+            $user_id, 
+            $jenis_sampah, 
+            $berat, 
+            $harga_per_kg, 
+            $total, 
+            $total_poin, 
+            $catatan
+        );
         
-        try {
-            // Kurangi poin user di transaksi_sampah
-            $insert_transaksi = mysqli_prepare($connect, "
-                INSERT INTO transaksi_sampah (id_anggota, jenis_sampah, berat, harga_per_kg, total, status, total_poin, catatan) 
-                VALUES (?, 'Penukaran Reward', 0, 0, 0, 'berhasil', ?, ?)
-            ");
-            $poin_negative = -$poin_dibutuhkan;
-            $keterangan = "Penukaran reward: " . $reward_name;
-            mysqli_stmt_bind_param($insert_transaksi, "iis", $user_id, $poin_negative, $keterangan);
-            mysqli_stmt_execute($insert_transaksi);
-            mysqli_stmt_close($insert_transaksi);
+        if (mysqli_stmt_execute($insert_query)) {
+            $_SESSION['success_message_transaksi'] = "Transaksi sampah berhasil diajukan! Menunggu konfirmasi admin.";
             
-            // Kurangi stok reward
-            $update_reward = mysqli_prepare($connect, "
-                UPDATE reward SET stok = stok - 1 WHERE id = ?
-            ");
-            mysqli_stmt_bind_param($update_reward, "i", $reward_id);
-            mysqli_stmt_execute($update_reward);
-            mysqli_stmt_close($update_reward);
-            
-            // Commit transaction
-            mysqli_commit($connect);
-            
-            $redeem_success = "Reward berhasil ditukar! Poin Anda telah dikurangi.";
-            
-            // Refresh poin history
+            // Refresh statistik
             $stats_query = mysqli_prepare($connect, "
-                SELECT COALESCE(SUM(total_poin), 0) AS total_poin
+                SELECT 
+                    COALESCE(SUM(berat), 0) as berat,
+                    COALESCE(SUM(total), 0) as total_nilai,
+                    COUNT(*) as total,
+                    COALESCE(SUM(total_poin), 0) as total_poin
                 FROM transaksi_sampah
                 WHERE id_anggota = ?
             ");
             mysqli_stmt_bind_param($stats_query, "i", $user_id);
             mysqli_stmt_execute($stats_query);
-            mysqli_stmt_bind_result($stats_query, $total_poin_history);
+            mysqli_stmt_bind_result($stats_query, $total_berat, $total_nilai, $total_transaksi, $total_poin_history);
             mysqli_stmt_fetch($stats_query);
             mysqli_stmt_close($stats_query);
             
-        } catch (Exception $e) {
-            mysqli_rollback($connect);
-            $redeem_error = "Gagal menukar reward: " . $e->getMessage();
-        }
-    } else {
-        if ($total_poin_history < $poin_dibutuhkan) {
-            $redeem_error = "Poin tidak mencukupi untuk menukar reward ini.";
         } else {
-            $redeem_error = "Stok reward habis.";
+            $_SESSION['error_message_transaksi'] = "Gagal mengajukan transaksi: " . mysqli_error($connect);
         }
+        
+        mysqli_stmt_close($insert_query);
+    } else {
+        $_SESSION['error_message_transaksi'] = "Gagal menyiapkan query: " . mysqli_error($connect);
     }
+    
+    // ⭐⭐ REDIRECT SETELAH POST ⭐⭐
+    header('Location: ' . $_SERVER['PHP_SELF'] . '?success=transaksi');
+    exit();
 }
 
+// Handle Redeem Reward - MODIFIKASI DENGAN PRG PATTERN
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['redeem_reward'])) {
+    $reward_id = mysqli_real_escape_string($connect, $_POST['reward_id']);
+
+    // Ambil data reward
+    $reward_query = mysqli_prepare($connect, "
+        SELECT nama_reward, poin_dibutuhkan, stok 
+        FROM reward 
+        WHERE id = ? AND status = 'active'
+    ");
+    mysqli_stmt_bind_param($reward_query, "i", $reward_id);
+    mysqli_stmt_execute($reward_query);
+    mysqli_stmt_bind_result($reward_query, $reward_name, $poin_dibutuhkan, $stok);
+    
+    if (mysqli_stmt_fetch($reward_query)) {
+        // Validasi
+        if ($stok <= 0) {
+            $_SESSION['redeem_error'] = "Stok reward sudah habis.";
+        } elseif ($total_poin_history < $poin_dibutuhkan) {
+            $_SESSION['redeem_error'] = "Poin tidak mencukupi. Anda memiliki {$total_poin_history} poin, butuh {$poin_dibutuhkan} poin.";
+        } else {
+            // Mulai transaksi database
+            mysqli_begin_transaction($connect);
+            
+            try {
+                // Kurangi stok reward
+                $update_reward = mysqli_prepare($connect, "UPDATE reward SET stok = stok - 1 WHERE id = ?");
+                mysqli_stmt_bind_param($update_reward, "i", $reward_id);
+                mysqli_stmt_execute($update_reward);
+                mysqli_stmt_close($update_reward);
+                
+                // Catat transaksi redeem (menggunakan poin negatif)
+                $insert_redeem = mysqli_prepare($connect, "
+                    INSERT INTO transaksi_sampah (id_anggota, jenis_sampah, berat, harga_per_kg, total, status, total_poin, catatan) 
+                    VALUES (?, 'Penukaran Reward', 0, 0, 0, 'berhasil', ?, ?)
+                ");
+                $poin_negatif = -$poin_dibutuhkan;
+                $keterangan = "Penukaran reward: {$reward_name}";
+                mysqli_stmt_bind_param($insert_redeem, "iis", $user_id, $poin_negatif, $keterangan);
+                mysqli_stmt_execute($insert_redeem);
+                mysqli_stmt_close($insert_redeem);
+                
+                // Commit transaksi
+                mysqli_commit($connect);
+                $_SESSION['redeem_success'] = "Berhasil menukarkan reward: {$reward_name}!";
+                
+                // Refresh poin
+                $stats_query = mysqli_prepare($connect, "
+                    SELECT COALESCE(SUM(total_poin), 0) AS total_poin
+                    FROM transaksi_sampah
+                    WHERE id_anggota = ?
+                ");
+                mysqli_stmt_bind_param($stats_query, "i", $user_id);
+                mysqli_stmt_execute($stats_query);
+                mysqli_stmt_bind_result($stats_query, $total_poin_history);
+                mysqli_stmt_fetch($stats_query);
+                mysqli_stmt_close($stats_query);
+                
+            } catch (Exception $e) {
+                mysqli_rollback($connect);
+                $_SESSION['redeem_error'] = "Gagal menukarkan reward: " . $e->getMessage();
+            }
+        }
+    } else {
+        $_SESSION['redeem_error'] = "Reward tidak ditemukan.";
+    }
+    mysqli_stmt_close($reward_query);
+    
+    // ⭐⭐ REDIRECT SETELAH POST ⭐⭐
+    header('Location: ' . $_SERVER['PHP_SELF'] . '?success=redeem');
+    exit();
+}
+
+// Query data untuk tampilan
 // Ambil riwayat jadwal penjemputan user
 $jadwal_query = mysqli_prepare($connect, "
     SELECT jenis_sampah, alamat_jemput, foto_sampah, catatan, status, tanggal_jemput, waktu_jemput, created_at 
@@ -213,23 +301,112 @@ $transaksi_data = [];
 while($row = mysqli_fetch_assoc($transaksi_result)) {
     $transaksi_data[] = $row;
 }
-// mysqli_stmt_close($transaksi_query);
+mysqli_stmt_close($transaksi_query);
 
-// // Format currency
-// function format_currency($number) {
-//     return 'Rp ' . number_format($number, 0, ',', '.');
-// }
+// Ambil semua data transaksi untuk tab transaksi
+$all_transaksi_query = mysqli_prepare($connect, "
+    SELECT tanggal, jenis_sampah, berat, harga_per_kg, total, status, total_poin
+    FROM transaksi_sampah
+    WHERE id_anggota = ? 
+    ORDER BY tanggal DESC
+");
+mysqli_stmt_bind_param($all_transaksi_query, "i", $user_id);
+mysqli_stmt_execute($all_transaksi_query);
+$all_transaksi_result = mysqli_stmt_get_result($all_transaksi_query);
+$all_transaksi_data = [];
+while($row = mysqli_fetch_assoc($all_transaksi_result)) {
+    $all_transaksi_data[] = $row;
+}
+mysqli_stmt_close($all_transaksi_query);
 
-// // Get initials for avatar
-// function get_initials($name) {
-//     $names = explode(' ', $name);
-//     $initials = '';
-//     foreach($names as $name) {
-//         $initials .= strtoupper(substr($name, 0, 1));
-//     }
-//     return substr($initials, 0, 2);
-// }
-// ?>
+// Ambil data reward
+$reward_query = mysqli_prepare($connect, "
+    SELECT id, nama_reward, deskripsi, poin_dibutuhkan, stok, kategori, gambar
+    FROM reward 
+    WHERE status = 'active'
+    ORDER BY poin_dibutuhkan ASC
+");
+mysqli_stmt_execute($reward_query);
+$reward_result = mysqli_stmt_get_result($reward_query);
+$reward_data = [];
+while($row = mysqli_fetch_assoc($reward_result)) {
+    $reward_data[] = $row;
+}
+mysqli_stmt_close($reward_query);
+
+// FUNGSI HELPER
+function format_currency($number) {
+    return 'Rp ' . number_format($number, 0, ',', '.');
+}
+
+function get_initials($name) {
+    if (empty($name)) return 'US';
+    $names = explode(' ', $name);
+    $initials = '';
+    foreach($names as $name) {
+        $initials .= strtoupper(substr($name, 0, 1));
+    }
+    return substr($initials, 0, 2);
+}
+
+function get_status_badge($status) {
+    switch($status) {
+        case 'berhasil': return 'badge-success';
+        case 'pending': return 'badge-warning';
+        case 'ditolak': return 'badge-danger';
+        default: return 'badge-warning';
+    }
+}
+
+function get_status_text($status) {
+    switch($status) {
+        case 'berhasil': return 'Berhasil';
+        case 'pending': return 'Menunggu';
+        case 'ditolak': return 'Ditolak';
+        default: return $status;
+    }
+}
+
+// Tambahkan script backup database
+function backupDatabase($connect) {
+    $tables = array('user', 'transaksi_sampah', 'jadwal_penjemputan', 'reward');
+    $return = '';
+    
+    foreach($tables as $table) {
+        $result = mysqli_query($connect, "SELECT * FROM $table");
+        $num_fields = mysqli_num_fields($result);
+        
+        $return .= "DROP TABLE IF EXISTS $table;";
+        $row2 = mysqli_fetch_row(mysqli_query($connect, "SHOW CREATE TABLE $table"));
+        $return .= "\n\n".$row2[1].";\n\n";
+        
+        for ($i = 0; $i < $num_fields; $i++) {
+            while($row = mysqli_fetch_row($result)) {
+                $return .= "INSERT INTO $table VALUES(";
+                for($j=0; $j<$num_fields; $j++) {
+                    $row[$j] = addslashes($row[$j]);
+                    $row[$j] = preg_replace("/\n/","\\n",$row[$j]);
+                    if (isset($row[$j])) { 
+                        $return .= '"'.$row[$j].'"' ; 
+                    } else { 
+                        $return .= '""'; 
+                    }
+                    if ($j<($num_fields-1)) { 
+                        $return .= ','; 
+                    }
+                }
+                $return .= ");\n";
+            }
+        }
+        $return .= "\n\n\n";
+    }
+    
+    // Save file
+    $handle = fopen('../backups/backup-'.time().'.sql','w+');
+    fwrite($handle,$return);
+    fclose($handle);
+}
+?>
 
 <!DOCTYPE html>
 <html lang="id">
@@ -925,26 +1102,6 @@ while($row = mysqli_fetch_assoc($transaksi_result)) {
         /* Alert Styles */
         .alert {
             padding: 12px 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            border: 1px solid transparent;
-        }
-
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            border-color: #c3e6cb;
-        }
-
-        .alert-error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border-color: #f5c6cb;
-        }
-
-        /* Alert Styles */
-        .alert {
-            padding: 12px 15px;
             border-radius: var(--radius);
             margin-bottom: 15px;
             font-size: 0.9rem;
@@ -1054,7 +1211,7 @@ while($row = mysqli_fetch_assoc($transaksi_result)) {
             text-transform: uppercase;
         }
 
-        /* Responsive Styles - IMPROVED */
+        /* Responsive Styles */
         @media (max-width: 992px) {
             .nav-links {
                 position: fixed;
@@ -1643,8 +1800,8 @@ while($row = mysqli_fetch_assoc($transaksi_result)) {
                     </table>
                 </div>
             </div>
+        </div>
 
-           
         <!-- Reward Tab -->
         <div class="tab-content" id="rewardTab">
             <?php if(isset($redeem_success)): ?>
@@ -1662,11 +1819,6 @@ while($row = mysqli_fetch_assoc($transaksi_result)) {
             <div class="card">
                 <div class="section-title">
                     <h3>Poin Reward Saya</h3>
-                    <div class="btn-group">
-                        <button class="btn btn-primary btn-sm" id="redeemReward">
-                            <i class="fas fa-gift"></i> Tukar Poin
-                        </button>
-                    </div>
                 </div>
                 <div class="stats-container">
                     <div class="stat-card">
@@ -1706,11 +1858,13 @@ while($row = mysqli_fetch_assoc($transaksi_result)) {
                     <?php else: ?>
                         <?php foreach($reward_data as $reward): ?>
                             <?php 
-                            $can_redeem = $total_poin_history >= $reward['poin_dibutuhkan'];
+                            $can_redeem = $total_poin_history >= $reward['poin_dibutuhkan'] && $reward['stok'] > 0;
                             $card_class = $can_redeem ? 'reward-card' : 'reward-card disabled';
                             ?>
-                            <div class="<?php echo $card_class; ?>" onclick="<?php echo $can_redeem ? 'showRedeemConfirm(' . $reward['id'] . ', ' . $reward['poin_dibutuhkan'] . ')' : ''; ?>">
-                                <span class="reward-category"><?php echo $reward['kategori']; ?></span>
+                            <div class="<?php echo $card_class; ?>" <?php echo $can_redeem ? 'onclick="showRedeemConfirm(' . $reward['id'] . ', ' . $reward['poin_dibutuhkan'] . ')"' : ''; ?>>
+                                <?php if(!empty($reward['kategori'])): ?>
+                                    <span class="reward-category"><?php echo $reward['kategori']; ?></span>
+                                <?php endif; ?>
                                 
                                 <?php if(!empty($reward['gambar'])): ?>
                                     <img src="../uploads/reward/<?php echo $reward['gambar']; ?>" alt="<?php echo htmlspecialchars($reward['nama_reward']); ?>" class="reward-image">
@@ -1728,7 +1882,9 @@ while($row = mysqli_fetch_assoc($transaksi_result)) {
                                 <?php if($can_redeem): ?>
                                     <button class="btn btn-primary btn-sm">Tukar Sekarang</button>
                                 <?php else: ?>
-                                    <button class="btn btn-outline btn-sm" disabled>Poin Tidak Cukup</button>
+                                    <button class="btn btn-outline btn-sm" disabled>
+                                        <?php echo $reward['stok'] <= 0 ? 'Stok Habis' : 'Poin Tidak Cukup'; ?>
+                                    </button>
                                 <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
@@ -2185,6 +2341,20 @@ while($row = mysqli_fetch_assoc($transaksi_result)) {
             setTimeout(() => {
                 toast.classList.remove('show');
             }, 3000);
+        }
+
+        // Fungsi untuk menampilkan konfirmasi redeem
+        function showRedeemConfirm(rewardId, poinDibutuhkan) {
+            // Isi detail redeem
+            redeemDetails.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <h4>Konfirmasi Penukaran Poin</h4>
+                    <p>Anda akan menukarkan <strong>${poinDibutuhkan} Poin</strong> untuk reward ini.</p>
+                    <p>Poin Anda saat ini: <strong><?php echo $total_poin_history; ?></strong></p>
+                </div>
+            `;
+            rewardIdInput.value = rewardId;
+            redeemModal.classList.add('active');
         }
 
         // Initialize the app when DOM is loaded
