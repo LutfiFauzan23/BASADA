@@ -61,7 +61,7 @@ function getRecentMembers($connect, $limit = 5) {
 }
 
 function getAllMembers($connect) {
-    $query = "SELECT id, nama, email, tanggal_daftar, status FROM user ORDER BY tanggal_daftar DESC";
+    $query = "SELECT id, nama, email, tanggal_daftar, status, terakhir_login FROM user ORDER BY tanggal_daftar DESC";
     $result = mysqli_query($connect, $query);
     $members = [];
     while($row = mysqli_fetch_assoc($result)) {
@@ -224,8 +224,7 @@ function getStatusText($status) {
             return 'Menunggu ACC';
     }
 }
-?>
-<?php
+
 // Fungsi untuk mengecek status user berdasarkan last_login
 function get_user_status($terakhir_login, $current_user_id = null) {
     if (!$terakhir_login) {
@@ -251,28 +250,6 @@ function get_user_status($terakhir_login, $current_user_id = null) {
         return 'Tidak Aktif';
     }
 }
-
-// Contoh penggunaan di dashboard admin (dasmin.php):
-$members_query = mysqli_prepare($connect, "
-    SELECT id, nama, email, tanggal_daftar, terakhir_login 
-    FROM user 
-    ORDER BY id DESC 
-    LIMIT 5
-");
-mysqli_stmt_execute($members_query);
-mysqli_stmt_bind_result($members_query, $member_id, $member_nama, $member_email, $member_tanggal_daftar, $member_last_login);
-$recentMembers = [];
-while(mysqli_stmt_fetch($members_query)) {
-    $recentMembers[] = [
-        'id' => $member_id,
-        'nama' => $member_nama,
-        'email' => $member_email,
-        'tanggal_daftar' => $member_tanggal_daftar,
-        'terakhir_login' => $member_last_login, 
-        'status' => get_user_status($member_last_login, $member_id)
-    ];
-}
-mysqli_stmt_close($members_query);
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -924,257 +901,257 @@ mysqli_stmt_close($members_query);
 
         /* Notification Card Styles */
         .notification-container {
-             position: fixed;
-                top: 100px;
-                right: 20px;
-                z-index: 9999;
-                max-width: 400px;
-            }
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+        }
 
-            .notification-card {
-                background: var(--white);
-                border-radius: var(--radius);
-                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-                padding: 20px;
-                margin-bottom: 15px;
-                border-left: 4px solid var(--primary);
-                transform: translateX(400px);
-                opacity: 0;
-                transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-                display: flex;
-                align-items: flex-start;
-                gap: 15px;
-                position: relative;
-                overflow: hidden;
-            }
+        .notification-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--primary);
+            transform: translateX(400px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            position: relative;
+            overflow: hidden;
+        }
 
-            .notification-card.show {
-                transform: translateX(0);
-                opacity: 1;
-            }
+        .notification-card.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
 
-            .notification-card.hide {
-                transform: translateX(400px);
-                opacity: 0;
-            }
+        .notification-card.hide {
+            transform: translateX(400px);
+            opacity: 0;
+        }
 
-            .notification-card.success {
-                border-left-color: #4caf50;
-                background: linear-gradient(135deg, #f1f8e9 0%, #e8f5e9 100%);
-            }
+        .notification-card.success {
+            border-left-color: #4caf50;
+            background: linear-gradient(135deg, #f1f8e9 0%, #e8f5e9 100%);
+        }
 
-            .notification-card.error {
-                border-left-color: #f44336;
-                background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);
-            }
+        .notification-card.error {
+            border-left-color: #f44336;
+            background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);
+        }
 
-            .notification-card.warning {
-                border-left-color: #ff9800;
-                background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%);
-            }
+        .notification-card.warning {
+            border-left-color: #ff9800;
+            background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%);
+        }
 
-            .notification-card.info {
-                border-left-color: #2196f3;
-                background: linear-gradient(135deg, #e3f2fd 0%, #e1f5fe 100%);
-            }
+        .notification-card.info {
+            border-left-color: #2196f3;
+            background: linear-gradient(135deg, #e3f2fd 0%, #e1f5fe 100%);
+        }
 
-            .notification-icon {
-                width: 50px;
-                height: 50px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-                font-size: 1.5rem;
-            }
+        .notification-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 1.5rem;
+        }
 
-            .notification-card.success .notification-icon {
-                background: rgba(76, 175, 80, 0.1);
-                color: #4caf50;
-            }
+        .notification-card.success .notification-icon {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4caf50;
+        }
 
-            .notification-card.error .notification-icon {
-                background: rgba(244, 67, 54, 0.1);
-                color: #f44336;
-            }
+        .notification-card.error .notification-icon {
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+        }
 
-            .notification-card.warning .notification-icon {
-                background: rgba(255, 152, 0, 0.1);
-                color: #ff9800;
-            }
+        .notification-card.warning .notification-icon {
+            background: rgba(255, 152, 0, 0.1);
+            color: #ff9800;
+        }
 
-            .notification-card.info .notification-icon {
-                background: rgba(33, 150, 243, 0.1);
-                color: #2196f3;
-            }
+        .notification-card.info .notification-icon {
+            background: rgba(33, 150, 243, 0.1);
+            color: #2196f3;
+        }
 
-            .notification-content {
-                flex: 1;
-            }
+        .notification-content {
+            flex: 1;
+        }
 
-            .notification-title {
-                font-weight: 600;
-                font-size: 1rem;
-                margin-bottom: 5px;
-                color: var(--text);
-            }
+        .notification-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 5px;
+            color: var(--text);
+        }
 
-            .notification-message {
-                font-size: 0.9rem;
-                color: var(--dark-gray);
-                line-height: 1.4;
-            }
+        .notification-message {
+            font-size: 0.9rem;
+            color: var(--dark-gray);
+            line-height: 1.4;
+        }
 
-            .notification-close {
-                background: none;
-                border: none;
-                color: var(--dark-gray);
-                cursor: pointer;
-                font-size: 1rem;
-                padding: 5px;
-                border-radius: 4px;
-                transition: var(--transition);
-                flex-shrink: 0;
-            }
+        .notification-close {
+            background: none;
+            border: none;
+            color: var(--dark-gray);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 5px;
+            border-radius: 4px;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
 
-            .notification-close:hover {
-                background: rgba(0, 0, 0, 0.1);
-                color: var(--text);
-            }
+        .notification-close:hover {
+            background: rgba(0, 0, 0, 0.1);
+            color: var(--text);
+        }
 
-            .notification-progress {
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                height: 3px;
-                background: currentColor;
-                opacity: 0.3;
-                width: 100%;
-                transform: scaleX(1);
-                transform-origin: left;
-                animation: progressBar 5s linear forwards;
-            }
+        .notification-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: currentColor;
+            opacity: 0.3;
+            width: 100%;
+            transform: scaleX(1);
+            transform-origin: left;
+            animation: progressBar 5s linear forwards;
+        }
 
-            @keyframes progressBar {
-                from { transform: scaleX(1); }
-                to { transform: scaleX(0); }
-            }
+        @keyframes progressBar {
+            from { transform: scaleX(1); }
+            to { transform: scaleX(0); }
+        }
 
-            /* Confirmation Modal Styles */
-            .confirmation-modal {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: rgba(0, 0, 0, 0.5);
-                z-index: 9999;
-                justify-content: center;
-                align-items: center;
-                backdrop-filter: blur(5px);
-            }
+        /* Confirmation Modal Styles */
+        .confirmation-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
 
-            .confirmation-card {
-                background: var(--white);
-                border-radius: 15px;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-                padding: 30px;
-                max-width: 450px;
-                width: 90%;
-                text-align: center;
-                transform: scale(0.7);
-                opacity: 0;
-                transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            }
+        .confirmation-card {
+            background: var(--white);
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 450px;
+            width: 90%;
+            text-align: center;
+            transform: scale(0.7);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
 
-            .confirmation-card.show {
-                transform: scale(1);
-                opacity: 1;
-            }
+        .confirmation-card.show {
+            transform: scale(1);
+            opacity: 1;
+        }
 
-            .confirmation-icon {
-                width: 80px;
-                height: 80px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 0 auto 20px;
-                font-size: 2rem;
-            }
+        .confirmation-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 2rem;
+        }
 
-            .confirmation-icon.warning {
-                background: rgba(255, 152, 0, 0.1);
-                color: #ff9800;
-                border: 2px solid rgba(255, 152, 0, 0.2);
-            }
+        .confirmation-icon.warning {
+            background: rgba(255, 152, 0, 0.1);
+            color: #ff9800;
+            border: 2px solid rgba(255, 152, 0, 0.2);
+        }
 
-            .confirmation-icon.danger {
-                background: rgba(244, 67, 54, 0.1);
-                color: #f44336;
-                border: 2px solid rgba(244, 67, 54, 0.2);
-            }
+        .confirmation-icon.danger {
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            border: 2px solid rgba(244, 67, 54, 0.2);
+        }
 
-            .confirmation-title {
-                font-size: 1.4rem;
-                font-weight: 600;
-                margin-bottom: 10px;
-                color: var(--text);
-            }
+        .confirmation-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
 
-            .confirmation-message {
-                color: var(--dark-gray);
-                margin-bottom: 25px;
-                line-height: 1.5;
-            }
+        .confirmation-message {
+            color: var(--dark-gray);
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
 
-            .confirmation-buttons {
-                display: flex;
-                gap: 15px;
-                justify-content: center;
-            }
+        .confirmation-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
 
-            .confirmation-btn {
-                padding: 12px 30px;
-                border: none;
-                border-radius: 8px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                min-width: 120px;
-            }
+        .confirmation-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
 
-            .confirmation-btn.cancel {
-                background: var(--gray);
-                color: var(--text);
-            }
+        .confirmation-btn.cancel {
+            background: var(--gray);
+            color: var(--text);
+        }
 
-            .confirmation-btn.cancel:hover {
-                background: var(--dark-gray);
-                transform: translateY(-2px);
-            }
+        .confirmation-btn.cancel:hover {
+            background: var(--dark-gray);
+            transform: translateY(-2px);
+        }
 
-            .confirmation-btn.confirm {
-                background: var(--primary);
-                color: white;
-            }
+        .confirmation-btn.confirm {
+            background: var(--primary);
+            color: white;
+        }
 
-            .confirmation-btn.confirm:hover {
-                background: var(--primary-dark);
-                transform: translateY(-2px);
-            }
+        .confirmation-btn.confirm:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
 
-            .confirmation-btn.danger {
-                background: #f44336;
-                color: white;
-            }
+        .confirmation-btn.danger {
+            background: #f44336;
+            color: white;
+        }
 
-            .confirmation-btn.danger:hover {
-                background: #d32f2f;
-                transform: translateY(-2px);
-            }
+        .confirmation-btn.danger:hover {
+            background: #d32f2f;
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
@@ -1285,7 +1262,7 @@ mysqli_stmt_close($members_query);
                                     <td><?php echo htmlspecialchars($member['nama']); ?></td>
                                     <td><?php echo htmlspecialchars($member['email']); ?></td>
                                     <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
-                                    <td><span class="badge badge-success"><?php echo $member['status'] === 'status' ? 'Aktif' : 'Tidak Aktif'; ?></span></td>
+                                    <td><span class="badge badge-success"><?php echo $member['status'] === 'active' ? 'Aktif' : 'Tidak Aktif'; ?></span></td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -1352,44 +1329,49 @@ mysqli_stmt_close($members_query);
                     <span>Data anggota diperbarui otomatis setiap 30 detik</span>
                 </div>
                 <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Nama</th>
-                                <th>Email</th>
-                                <th>Tanggal Bergabung</th>
-                                <th>Status</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="allMembersTable">
-                            <?php foreach($allMembers as $member): ?>
-                            <?php
-                            $last_login = isset($member['terakhir_login']) ? $member['terakhir_login'] : $member['tanggal_daftar'];
-                    $member_status = get_user_status($last_login, $member['id']);
-                            ?>
-                            <tr>
-                                <td><?php echo $member['id']; ?></td>
-                                <td><?php echo htmlspecialchars($member['nama']); ?></td>
-                                <td><?php echo htmlspecialchars($member['email']); ?></td>
-                                <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
-                                <td>
-                                    <span class="badge <?php echo $member_status === 'Online' ? 'badge-success' : ($member_status === 'Aktif' ? 'badge-warning' : 'badge-danger'); ?>">
-                                        <?php echo $member_status; ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <button class="btn btn-danger btn-sm delete-member-btn" data-id="<?php echo $member['id']; ?>">
-                                            <i class="fas fa-trash"></i> Hapus
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                    <!-- Di bagian tabel anggota, tambahkan kolom Saldo -->
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nama</th>
+            <th>Email</th>
+            <th>Tanggal Bergabung</th>
+            <th>Saldo (Rp)</th>
+            <th>Status</th>
+            <th>Aksi</th>
+        </tr>
+    </thead>
+    <tbody id="allMembersTable">
+        <?php foreach($allMembers as $member): ?>
+        <?php
+        $last_login = isset($member['terakhir_login']) ? $member['terakhir_login'] : $member['tanggal_daftar'];
+        $member_status = get_user_status($last_login, $member['id']);
+        ?>
+        <tr>
+            <td><?php echo $member['id']; ?></td>
+            <td><?php echo htmlspecialchars($member['nama']); ?></td>
+            <td><?php echo htmlspecialchars($member['email']); ?></td>
+            <td><?php echo date('d M Y', strtotime($member['tanggal_daftar'])); ?></td>
+            <td style="font-weight: bold; color: var(--primary);">
+                <?php echo number_format($member['saldo'] ?? 0, 0, ',', '.'); ?>
+            </td>
+            <td>
+                <span class="badge <?php echo $member_status === 'Online' ? 'badge-success' : ($member_status === 'Aktif' ? 'badge-warning' : 'badge-danger'); ?>">
+                    <?php echo $member_status; ?>
+                </span>
+            </td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn btn-danger btn-sm delete-member-btn" data-id="<?php echo $member['id']; ?>" data-name="<?php echo htmlspecialchars($member['nama']); ?>">
+                        <i class="fas fa-trash"></i> Hapus
+                    </button>
+                </div>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
                 </div>
             </div>
         </div>
@@ -1436,10 +1418,10 @@ mysqli_stmt_close($members_query);
                                 </td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn btn-success btn-sm approve-waste-btn" data-id="<?php echo $waste['id']; ?>">
+                                        <button class="btn btn-success btn-sm approve-waste-btn" data-id="<?php echo $waste['id']; ?>" data-name="<?php echo htmlspecialchars($waste['nama']); ?>">
                                             <i class="fas fa-check"></i> Setujui
                                         </button>
-                                        <button class="btn btn-danger btn-sm reject-waste-btn" data-id="<?php echo $waste['id']; ?>">
+                                        <button class="btn btn-danger btn-sm reject-waste-btn" data-id="<?php echo $waste['id']; ?>" data-name="<?php echo htmlspecialchars($waste['nama']); ?>">
                                             <i class="fas fa-times"></i> Tolak
                                         </button>
                                     </div>
@@ -1500,7 +1482,7 @@ mysqli_stmt_close($members_query);
                                 </td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn btn-danger btn-sm delete-waste-btn" data-id="<?php echo $waste['id']; ?>">
+                                        <button class="btn btn-danger btn-sm delete-waste-btn" data-id="<?php echo $waste['id']; ?>" data-name="<?php echo htmlspecialchars($waste['nama']); ?>">
                                             <i class="fas fa-trash"></i> Hapus
                                         </button>
                                     </div>
@@ -1548,10 +1530,10 @@ mysqli_stmt_close($members_query);
                                 </td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn btn-outline btn-sm edit-btn" data-id="<?php echo $price['id']; ?>">
+                                        <button class="btn btn-outline btn-sm edit-price-btn" data-id="<?php echo $price['id']; ?>" data-jenis="<?php echo htmlspecialchars($price['jenis_sampah']); ?>" data-harga="<?php echo $price['harga']; ?>" data-status="<?php echo $price['status']; ?>">
                                             <i class="fas fa-edit"></i> Edit
                                         </button>
-                                        <button class="btn btn-danger btn-sm delete-btn" data-id="<?php echo $price['id']; ?>">
+                                        <button class="btn btn-danger btn-sm delete-price-btn" data-id="<?php echo $price['id']; ?>" data-jenis="<?php echo htmlspecialchars($price['jenis_sampah']); ?>">
                                             <i class="fas fa-trash"></i> Hapus
                                         </button>
                                     </div>
@@ -1636,7 +1618,7 @@ mysqli_stmt_close($members_query);
             </div>
         </div>
 
-        <!-- Database Tab -->
+        Database Tab
         <div class="tab-content" id="databaseTab">
             <div class="card">
                 <div class="section-title">
@@ -1779,10 +1761,22 @@ mysqli_stmt_close($members_query);
         </div>
     </div>
 
-    <!-- Toast Notification -->
-    <div class="toast" id="toast">
-        <i class="fas fa-check-circle"></i>
-        <span id="toastMessage">Tindakan berhasil dilakukan!</span>
+    <!-- Notification Container -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- Confirmation Modal -->
+    <div class="confirmation-modal" id="confirmationModal">
+        <div class="confirmation-card" id="confirmationCard">
+            <div class="confirmation-icon warning" id="confirmationIcon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 class="confirmation-title" id="confirmationTitle">Konfirmasi Tindakan</h3>
+            <p class="confirmation-message" id="confirmationMessage">Apakah Anda yakin ingin melanjutkan tindakan ini?</p>
+            <div class="confirmation-buttons">
+                <button class="confirmation-btn cancel" id="confirmCancel">Batal</button>
+                <button class="confirmation-btn confirm" id="confirmOk">Ya, Lanjutkan</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1803,6 +1797,125 @@ mysqli_stmt_close($members_query);
                 growth: "+12%"
             }
         };
+
+        // Notification System
+        class NotificationSystem {
+            constructor() {
+                this.container = document.getElementById('notificationContainer');
+                this.notificationId = 0;
+            }
+
+            showNotification(title, message, type = 'success', duration = 5000) {
+                const id = this.notificationId++;
+                const notification = document.createElement('div');
+                notification.className = `notification-card ${type}`;
+                notification.id = `notification-${id}`;
+                
+                const icons = {
+                    success: 'fas fa-check-circle',
+                    error: 'fas fa-exclamation-circle',
+                    warning: 'fas fa-exclamation-triangle',
+                    info: 'fas fa-info-circle'
+                };
+
+                notification.innerHTML = `
+                    <div class="notification-icon">
+                        <i class="${icons[type]}"></i>
+                    </div>
+                    <div class="notification-content">
+                        <div class="notification-title">${title}</div>
+                        <div class="notification-message">${message}</div>
+                    </div>
+                    <button class="notification-close" onclick="notificationSystem.closeNotification(${id})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="notification-progress"></div>
+                `;
+
+                this.container.appendChild(notification);
+
+                // Show animation
+                setTimeout(() => {
+                    notification.classList.add('show');
+                }, 100);
+
+                // Auto close
+                if (duration > 0) {
+                    setTimeout(() => {
+                        this.closeNotification(id);
+                    }, duration);
+                }
+
+                return id;
+            }
+
+            closeNotification(id) {
+                const notification = document.getElementById(`notification-${id}`);
+                if (notification) {
+                    notification.classList.remove('show');
+                    notification.classList.add('hide');
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.parentNode.removeChild(notification);
+                        }
+                    }, 400);
+                }
+            }
+
+            // Confirmation dialog
+            showConfirmation(title, message, type = 'warning') {
+                return new Promise((resolve) => {
+                    const modal = document.getElementById('confirmationModal');
+                    const card = document.getElementById('confirmationCard');
+                    const icon = document.getElementById('confirmationIcon');
+                    const titleEl = document.getElementById('confirmationTitle');
+                    const messageEl = document.getElementById('confirmationMessage');
+                    const cancelBtn = document.getElementById('confirmCancel');
+                    const okBtn = document.getElementById('confirmOk');
+
+                    // Set content
+                    titleEl.textContent = title;
+                    messageEl.innerHTML = message;
+                    
+                    // Set type
+                    icon.className = `confirmation-icon ${type}`;
+                    okBtn.className = `confirmation-btn ${type === 'danger' ? 'danger' : 'confirm'}`;
+
+                    // Show modal
+                    modal.style.display = 'flex';
+                    setTimeout(() => {
+                        card.classList.add('show');
+                    }, 100);
+
+                    // Event handlers
+                    const handleResult = (result) => {
+                        card.classList.remove('show');
+                        setTimeout(() => {
+                            modal.style.display = 'none';
+                            resolve(result);
+                        }, 300);
+                        
+                        // Remove event listeners
+                        cancelBtn.onclick = null;
+                        okBtn.onclick = null;
+                        modal.onclick = null;
+                    };
+
+                    cancelBtn.onclick = () => handleResult(false);
+                    okBtn.onclick = () => handleResult(true);
+                    
+                    // Close when clicking outside
+                    modal.onclick = (e) => {
+                        if (e.target === modal) {
+                            handleResult(false);
+                        }
+                    };
+                });
+            }
+        }
+
+        // Initialize notification system
+        const notificationSystem = new NotificationSystem();
 
         // DOM Elements
         const header = document.getElementById('header');
@@ -1838,8 +1951,6 @@ mysqli_stmt_close($members_query);
         const totalPrice = document.getElementById('totalPrice');
         const saveDbConfigBtn = document.getElementById('saveDbConfig');
         const testConnectionBtn = document.getElementById('testConnection');
-        const toast = document.getElementById('toast');
-        const toastMessage = document.getElementById('toastMessage');
         const navLinksElements = document.querySelectorAll('.nav-link');
         const tabContents = document.querySelectorAll('.tab-content');
 
@@ -1853,7 +1964,7 @@ mysqli_stmt_close($members_query);
             
             // Show welcome message
             setTimeout(() => {
-                showToast('Dashboard admin berhasil dimuat!');
+                notificationSystem.showNotification('Dashboard Admin', 'Dashboard admin berhasil dimuat!', 'success');
             }, 1000);
         }
 
@@ -1903,10 +2014,10 @@ mysqli_stmt_close($members_query);
             });
             
             // Export buttons
-            exportMembersBtn.addEventListener('click', () => showToast('Data anggota berhasil diexport'));
-            exportPricesBtn.addEventListener('click', () => showToast('Data harga berhasil diexport'));
-            exportIncomeBtn.addEventListener('click', () => showToast('Data pendapatan berhasil diexport'));
-            filterWasteBtn.addEventListener('click', () => showToast('Filter data sampah diterapkan'));
+            exportMembersBtn.addEventListener('click', () => notificationSystem.showNotification('Export Berhasil', 'Data anggota berhasil diexport', 'success'));
+            exportPricesBtn.addEventListener('click', () => notificationSystem.showNotification('Export Berhasil', 'Data harga berhasil diexport', 'success'));
+            exportIncomeBtn.addEventListener('click', () => notificationSystem.showNotification('Export Berhasil', 'Data pendapatan berhasil diexport', 'success'));
+            filterWasteBtn.addEventListener('click', () => notificationSystem.showNotification('Filter Diterapkan', 'Filter data sampah diterapkan', 'info'));
             
             // Reset database config
             resetDbConfigBtn.addEventListener('click', resetDbConfig);
@@ -1943,28 +2054,34 @@ mysqli_stmt_close($members_query);
             document.querySelectorAll('.delete-member-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    deleteMember(id);
+                    const name = e.currentTarget.getAttribute('data-name');
+                    deleteMember(id, name);
                 });
             });
 
             document.querySelectorAll('.delete-waste-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    deleteWasteData(id);
+                    const name = e.currentTarget.getAttribute('data-name');
+                    deleteWasteData(id, name);
                 });
             });
 
-            document.querySelectorAll('.edit-btn').forEach(btn => {
+            document.querySelectorAll('.edit-price-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    openEditModal(id);
+                    const jenis = e.currentTarget.getAttribute('data-jenis');
+                    const harga = e.currentTarget.getAttribute('data-harga');
+                    const status = e.currentTarget.getAttribute('data-status');
+                    openEditModal(id, jenis, harga, status);
                 });
             });
 
-            document.querySelectorAll('.delete-btn').forEach(btn => {
+            document.querySelectorAll('.delete-price-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    deletePrice(id);
+                    const jenis = e.currentTarget.getAttribute('data-jenis');
+                    deletePrice(id, jenis);
                 });
             });
 
@@ -1972,14 +2089,16 @@ mysqli_stmt_close($members_query);
             document.querySelectorAll('.approve-waste-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    approveWaste(id);
+                    const name = e.currentTarget.getAttribute('data-name');
+                    approveWaste(id, name);
                 });
             });
 
             document.querySelectorAll('.reject-waste-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                    rejectWaste(id);
+                    const name = e.currentTarget.getAttribute('data-name');
+                    rejectWaste(id, name);
                 });
             });
         }
@@ -2037,222 +2156,88 @@ mysqli_stmt_close($members_query);
             });
         }
 
-       // Notification System
-class NotificationSystem {
-    constructor() {
-        this.container = document.getElementById('notificationContainer');
-        this.notificationId = 0;
-    }
-
-    showNotification(title, message, type = 'success', duration = 5000) {
-        const id = this.notificationId++;
-        const notification = document.createElement('div');
-        notification.className = `notification-card ${type}`;
-        notification.id = `notification-${id}`;
-        
-        const icons = {
-            success: 'fas fa-check-circle',
-            error: 'fas fa-exclamation-circle',
-            warning: 'fas fa-exclamation-triangle',
-            info: 'fas fa-info-circle'
-        };
-
-        notification.innerHTML = `
-            <div class="notification-icon">
-                <i class="${icons[type]}"></i>
-            </div>
-            <div class="notification-content">
-                <div class="notification-title">${title}</div>
-                <div class="notification-message">${message}</div>
-            </div>
-            <button class="notification-close" onclick="notificationSystem.closeNotification(${id})">
-                <i class="fas fa-times"></i>
-            </button>
-            <div class="notification-progress"></div>
-        `;
-
-        this.container.appendChild(notification);
-
-        // Show animation
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 100);
-
-        // Auto close
-        if (duration > 0) {
-            setTimeout(() => {
-                this.closeNotification(id);
-            }, duration);
-        }
-
-        return id;
-    }
-
-    closeNotification(id) {
-        const notification = document.getElementById(`notification-${id}`);
-        if (notification) {
-            notification.classList.remove('show');
-            notification.classList.add('hide');
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 400);
-        }
-    }
-
-    // Confirmation dialog
-    showConfirmation(title, message, type = 'warning') {
-        return new Promise((resolve) => {
-            const modal = document.getElementById('confirmationModal');
-            const card = document.getElementById('confirmationCard');
-            const icon = document.getElementById('confirmationIcon');
-            const titleEl = document.getElementById('confirmationTitle');
-            const messageEl = document.getElementById('confirmationMessage');
-            const cancelBtn = document.getElementById('confirmCancel');
-            const okBtn = document.getElementById('confirmOk');
-
-            // Set content
-            titleEl.textContent = title;
-            messageEl.textContent = message;
-            
-            // Set type
-            icon.className = `confirmation-icon ${type}`;
-            okBtn.className = `confirmation-btn ${type === 'danger' ? 'danger' : 'confirm'}`;
-
-            // Show modal
-            modal.style.display = 'flex';
-            setTimeout(() => {
-                card.classList.add('show');
-            }, 100);
-
-            // Event handlers
-            const handleResult = (result) => {
-                card.classList.remove('show');
-                setTimeout(() => {
-                    modal.style.display = 'none';
-                    resolve(result);
-                }, 300);
-                
-                // Remove event listeners
-                cancelBtn.onclick = null;
-                okBtn.onclick = null;
-                modal.onclick = null;
-            };
-
-            cancelBtn.onclick = () => handleResult(false);
-            okBtn.onclick = () => handleResult(true);
-            
-            // Close when clicking outside
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    handleResult(false);
-                }
-            };
-        });
-    }
-}
-
-// Initialize notification system
-const notificationSystem = new NotificationSystem();
-
-// Replace showToast function with new notification system
-function showToast(message, type = 'success') {
-    const titles = {
-        success: 'Berhasil',
-        error: 'Error',
-        warning: 'Peringatan',
-        info: 'Informasi'
-    };
-    
-    notificationSystem.showNotification(titles[type], message, type);
-}
-
-// Updated delete member function with confirmation modal
-function deleteMember(id) {
-    const nama = document.querySelector(`.delete-member-btn[data-id="${id}"]`)
-        .closest('tr')
-        .querySelector('td:nth-child(2)')
-        .textContent;
-
-    notificationSystem.showConfirmation(
-        'Hapus Anggota',
-        `Apakah Anda yakin ingin menghapus anggota <strong>"${nama}"</strong>? Semua data transaksi sampah anggota ini juga akan dihapus. Tindakan ini tidak dapat dibatalkan!`,
-        'danger'
-    ).then(confirmed => {
-        if (confirmed) {
-            // Show loading notification
-            const loadingId = notificationSystem.showNotification(
-                'Memproses',
-                'Sedang menghapus anggota...',
-                'info',
-                0 // No auto close
-            );
-
-            // AJAX request untuk menghapus anggota
-            fetch('../backend/delete_member.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'id=' + id
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Close loading notification
-                notificationSystem.closeNotification(loadingId);
-                
-                if (data.success) {
-                    notificationSystem.showNotification(
-                        'Berhasil Dihapus',
-                        `Anggota "${memberName}" berhasil dihapus dari sistem`,
-                        'success'
+        // Updated delete member function with confirmation modal
+        function deleteMember(id, name) {
+            notificationSystem.showConfirmation(
+                'Hapus Anggota',
+                `Apakah Anda yakin ingin menghapus anggota <strong>"${name}"</strong>? Semua data transaksi sampah anggota ini juga akan dihapus. Tindakan ini tidak dapat dibatalkan!`,
+                'danger'
+            ).then(confirmed => {
+                if (confirmed) {
+                    // Show loading notification
+                    const loadingId = notificationSystem.showNotification(
+                        'Memproses',
+                        'Sedang menghapus anggota...',
+                        'info',
+                        0 // No auto close
                     );
-                    
-                    // Remove the row from table
-                    const row = document.querySelector(`.delete-member-btn[data-id="${id}"]`).closest('tr');
-                    row.style.backgroundColor = '#ffebee';
-                    setTimeout(() => {
-                        row.remove();
-                        updateStatsAfterDelete();
-                    }, 1000);
-                } else {
-                    notificationSystem.showNotification(
-                        'Gagal Menghapus',
-                        `Gagal menghapus anggota: ${data.message}`,
-                        'error'
-                    );
+
+                    // AJAX request untuk menghapus anggota
+                    fetch('../backend/delete_member.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'id=' + id
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // Close loading notification
+                        notificationSystem.closeNotification(loadingId);
+                        
+                        if (data.success) {
+                            notificationSystem.showNotification(
+                                'Berhasil Dihapus',
+                                `Anggota "${name}" berhasil dihapus dari sistem`,
+                                'success'
+                            );
+                            
+                            // Remove the row from table
+                            const row = document.querySelector(`.delete-member-btn[data-id="${id}"]`).closest('tr');
+                            row.style.backgroundColor = '#ffebee';
+                            setTimeout(() => {
+                                row.remove();
+                                updateStatsAfterDelete();
+                            }, 1000);
+                        } else {
+                            notificationSystem.showNotification(
+                                'Gagal Menghapus',
+                                `Gagal menghapus anggota: ${data.message}`,
+                                'error'
+                            );
+                        }
+                    })
+                    .catch(error => {
+                        notificationSystem.closeNotification(loadingId);
+                        notificationSystem.showNotification(
+                            'Kesalahan Jaringan',
+                            'Terjadi kesalahan saat menghubungi server',
+                            'error'
+                        );
+                        console.error('Fetch error:', error);
+                    });
                 }
-            })
-            .catch(error => {
-                notificationSystem.closeNotification(loadingId);
-                notificationSystem.showNotification(
-                    'Kesalahan Jaringan',
-                    'Terjadi kesalahan saat menghubungi server',
-                    'error'
-                );
-                console.error('Fetch error:', error);
             });
         }
-    });
-}
 
+        // Updated approve waste function
 // Updated approve waste function
-function approveWaste(id) {
+function approveWaste(id, name) {
     notificationSystem.showConfirmation(
         'Setujui Penjualan',
-        'Apakah Anda yakin ingin menyetujui penjualan sampah ini?',
+        `Apakah Anda yakin ingin menyetujui penjualan sampah dari <strong>"${name}"</strong>?<br><br>
+         <small>Saldo user akan ditambahkan sesuai total penjualan.</small>`,
         'warning'
     ).then(confirmed => {
         if (confirmed) {
             const loadingId = notificationSystem.showNotification(
                 'Memproses',
-                'Sedang menyetujui penjualan...',
+                'Sedang menyetujui penjualan dan menambah saldo...',
                 'info',
                 0
             );
 
-            fetch('approve_waste.php', {
+            fetch('../backend/admin_control/approve_waste.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -2266,10 +2251,14 @@ function approveWaste(id) {
                 if (data.success) {
                     notificationSystem.showNotification(
                         'Disetujui',
-                        'Penjualan sampah berhasil disetujui',
+                        data.message,
                         'success'
                     );
-                    setTimeout(() => location.reload(), 1500);
+                    // Refresh data setelah 2 detik
+                    setTimeout(() => {
+                        refreshPending();
+                        refreshData();
+                    }, 2000);
                 } else {
                     notificationSystem.showNotification(
                         'Gagal',
@@ -2285,16 +2274,17 @@ function approveWaste(id) {
                     'Terjadi kesalahan saat memproses',
                     'error'
                 );
+                console.error('Error:', error);
             });
         }
     });
 }
 
 // Updated reject waste function
-function rejectWaste(id) {
+function rejectWaste(id, name) {
     notificationSystem.showConfirmation(
         'Tolak Penjualan',
-        'Apakah Anda yakin ingin menolak penjualan sampah ini?',
+        `Apakah Anda yakin ingin menolak penjualan sampah dari <strong>"${name}"</strong>?`,
         'danger'
     ).then(confirmed => {
         if (confirmed) {
@@ -2305,7 +2295,7 @@ function rejectWaste(id) {
                 0
             );
 
-            fetch('approve_waste.php', {
+            fetch('../backend/admin_control/approve_waste.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -2319,10 +2309,13 @@ function rejectWaste(id) {
                 if (data.success) {
                     notificationSystem.showNotification(
                         'Ditolak',
-                        'Penjualan sampah berhasil ditolak',
+                        data.message,
                         'success'
                     );
-                    setTimeout(() => location.reload(), 1500);
+                    // Refresh data setelah 2 detik
+                    setTimeout(() => {
+                        refreshPending();
+                    }, 2000);
                 } else {
                     notificationSystem.showNotification(
                         'Gagal',
@@ -2338,59 +2331,23 @@ function rejectWaste(id) {
                     'Terjadi kesalahan saat memproses',
                     'error'
                 );
+                console.error('Error:', error);
             });
         }
     });
 }
 
-// Update other functions to use new notification system
-function savePriceChanges() {
-    if (currentEditId) {
-        const loadingId = notificationSystem.showNotification(
-            'Menyimpan',
-            'Sedang menyimpan perubahan harga...',
-            'info',
-            0
-        );
-
-        const formData = new FormData();
-        formData.append('id', currentEditId);
-        formData.append('jenis_sampah', editJenis.value);
-        formData.append('harga', editHarga.value);
-        formData.append('status', editStatus.value);
-
-        fetch('update_price.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            notificationSystem.closeNotification(loadingId);
-            
-            if (data.success) {
-                notificationSystem.showNotification(
-                    'Berhasil Disimpan',
-                    'Harga sampah berhasil diperbarui',
-                    'success'
-                );
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                notificationSystem.showNotification(
-                    'Gagal Menyimpan',
-                    `Gagal memperbarui harga: ${data.message}`,
-                    'error'
-                );
-            }
-        })
-        .catch(error => {
-            notificationSystem.closeNotification(loadingId);
-            notificationSystem.showNotification(
-                'Kesalahan',
-                'Terjadi kesalahan saat menyimpan',
-                'error'
-            );
-        });
-    }
+// Fungsi untuk refresh data pending
+function refreshPending() {
+    // Show loading state
+    const originalText = refreshPendingBtn.innerHTML;
+    refreshPendingBtn.innerHTML = '<div class="loading"></div> Memuat...';
+    refreshPendingBtn.disabled = true;
+    
+    // Reload halaman untuk data terbaru
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
 }
 
         // Function to update stats after delete
@@ -2413,15 +2370,12 @@ function savePriceChanges() {
         }
 
         // Open edit modal
-        function openEditModal(id) {
-            const price = appData.wastePrices.find(p => p.id === id);
-            if (price) {
-                currentEditId = id;
-                editJenis.value = price.jenis_sampah;
-                editHarga.value = price.harga;
-                editStatus.value = price.status;
-                editPriceModal.style.display = 'flex';
-            }
+        function openEditModal(id, jenis, harga, status) {
+            currentEditId = id;
+            editJenis.value = jenis;
+            editHarga.value = harga;
+            editStatus.value = status;
+            editPriceModal.style.display = 'flex';
         }
 
         // Close edit modal
@@ -2441,30 +2395,49 @@ function savePriceChanges() {
         // Save price changes
         function savePriceChanges() {
             if (currentEditId) {
+                const loadingId = notificationSystem.showNotification(
+                    'Menyimpan',
+                    'Sedang menyimpan perubahan harga...',
+                    'info',
+                    0
+                );
+
                 const formData = new FormData();
                 formData.append('id', currentEditId);
                 formData.append('jenis_sampah', editJenis.value);
                 formData.append('harga', editHarga.value);
                 formData.append('status', editStatus.value);
 
-                fetch('update_price.php', {
+                fetch('../backend/update_price.php', {
                     method: 'POST',
                     body: formData
                 })
                 .then(response => response.json())
                 .then(data => {
+                    notificationSystem.closeNotification(loadingId);
+                    
                     if (data.success) {
-                        showToast('Harga sampah berhasil diperbarui');
-                        setTimeout(() => {
-                            location.reload(); // Reload untuk update data terbaru
-                        }, 1000);
+                        notificationSystem.showNotification(
+                            'Berhasil Disimpan',
+                            'Harga sampah berhasil diperbarui',
+                            'success'
+                        );
+                        setTimeout(() => location.reload(), 1000);
                     } else {
-                        showToast('Gagal memperbarui harga: ' + data.message, 'error');
+                        notificationSystem.showNotification(
+                            'Gagal Menyimpan',
+                            `Gagal memperbarui harga: ${data.message}`,
+                            'error'
+                        );
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    showToast('Terjadi kesalahan saat memperbarui harga', 'error');
+                    notificationSystem.closeNotification(loadingId);
+                    notificationSystem.showNotification(
+                        'Kesalahan',
+                        'Terjadi kesalahan saat menyimpan',
+                        'error'
+                    );
                 });
             }
         }
@@ -2479,10 +2452,17 @@ function savePriceChanges() {
             const total = selectedPrice * weight;
             
             if (!wasteDate.value || !weight || !selectedMemberId) {
-                showToast('Harap isi semua field dengan benar', 'error');
+                notificationSystem.showNotification('Validasi Gagal', 'Harap isi semua field dengan benar', 'error');
                 return;
             }
             
+            const loadingId = notificationSystem.showNotification(
+                'Menyimpan',
+                'Sedang menambahkan data sampah...',
+                'info',
+                0
+            );
+
             const formData = new FormData();
             formData.append('user_id', selectedMemberId);
             formData.append('tanggal', wasteDate.value);
@@ -2491,172 +2471,205 @@ function savePriceChanges() {
             formData.append('harga_per_kg', selectedPrice);
             formData.append('total_harga', total);
 
-            fetch('add_waste.php', {
+            fetch('../backend/add_waste.php', {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
+                notificationSystem.closeNotification(loadingId);
+                
                 if (data.success) {
-                    showToast('Data sampah berhasil ditambahkan');
+                    notificationSystem.showNotification(
+                        'Berhasil Ditambahkan',
+                        'Data sampah berhasil ditambahkan',
+                        'success'
+                    );
                     setTimeout(() => {
                         location.reload(); // Reload untuk update data terbaru
                     }, 1000);
                 } else {
-                    showToast('Gagal menambah data sampah: ' + data.message, 'error');
+                    notificationSystem.showNotification(
+                        'Gagal Menambah',
+                        `Gagal menambah data sampah: ${data.message}`,
+                        'error'
+                    );
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                showToast('Terjadi kesalahan saat menambah data sampah', 'error');
+                notificationSystem.closeNotification(loadingId);
+                notificationSystem.showNotification(
+                    'Kesalahan',
+                    'Terjadi kesalahan saat menambah data sampah',
+                    'error'
+                );
             });
         }
 
         // Delete waste data
-        function deleteWasteData(id) {
-            if (confirm('Apakah Anda yakin ingin menghapus data sampah ini?')) {
-                fetch('delete_waste.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `id=${id}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Data sampah berhasil dihapus');
-                        setTimeout(() => {
-                            location.reload(); // Reload untuk update data terbaru
-                        }, 1000);
-                    } else {
-                        showToast('Gagal menghapus data sampah: ' + data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showToast('Terjadi kesalahan saat menghapus data sampah', 'error');
-                });
-            }
-        }
+        function deleteWasteData(id, name) {
+            notificationSystem.showConfirmation(
+                'Hapus Data Sampah',
+                `Apakah Anda yakin ingin menghapus data sampah dari <strong>"${name}"</strong>?`,
+                'danger'
+            ).then(confirmed => {
+                if (confirmed) {
+                    const loadingId = notificationSystem.showNotification(
+                        'Memproses',
+                        'Sedang menghapus data sampah...',
+                        'info',
+                        0
+                    );
 
-        // Approve waste data
-        function approveWaste(id) {
-            if (confirm('Apakah Anda yakin ingin menyetujui penjualan sampah ini?')) {
-                fetch('approve_waste.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `id=${id}&action=approve`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Penjualan sampah berhasil disetujui');
-                        setTimeout(() => {
-                            location.reload(); // Reload untuk update data terbaru
-                        }, 1000);
-                    } else {
-                        showToast('Gagal menyetujui penjualan: ' + data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showToast('Terjadi kesalahan saat menyetujui penjualan', 'error');
-                });
-            }
-        }
-
-        // Reject waste data
-        function rejectWaste(id) {
-            if (confirm('Apakah Anda yakin ingin menolak penjualan sampah ini?')) {
-                fetch('approve_waste.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `id=${id}&action=reject`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Penjualan sampah berhasil ditolak');
-                        setTimeout(() => {
-                            location.reload(); // Reload untuk update data terbaru
-                        }, 1000);
-                    } else {
-                        showToast('Gagal menolak penjualan: ' + data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showToast('Terjadi kesalahan saat menolak penjualan', 'error');
-                });
-            }
+                    fetch('../backend/delete_waste.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `id=${id}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        notificationSystem.closeNotification(loadingId);
+                        
+                        if (data.success) {
+                            notificationSystem.showNotification(
+                                'Berhasil Dihapus',
+                                'Data sampah berhasil dihapus',
+                                'success'
+                            );
+                            setTimeout(() => {
+                                location.reload(); // Reload untuk update data terbaru
+                            }, 1000);
+                        } else {
+                            notificationSystem.showNotification(
+                                'Gagal Menghapus',
+                                `Gagal menghapus data sampah: ${data.message}`,
+                                'error'
+                            );
+                        }
+                    })
+                    .catch(error => {
+                        notificationSystem.closeNotification(loadingId);
+                        notificationSystem.showNotification(
+                            'Kesalahan',
+                            'Terjadi kesalahan saat menghapus data sampah',
+                            'error'
+                        );
+                    });
+                }
+            });
         }
 
         // Add new price
         function addNewPrice() {
+            const loadingId = notificationSystem.showNotification(
+                'Memproses',
+                'Sedang menambahkan jenis sampah baru...',
+                'info',
+                0
+            );
+
             const formData = new FormData();
             formData.append('jenis_sampah', 'Jenis Baru');
             formData.append('harga', 0);
             formData.append('status', 'active');
 
-            fetch('add_price.php', {
+            fetch('../backend/add_price.php', {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
+                notificationSystem.closeNotification(loadingId);
+                
                 if (data.success) {
-                    showToast('Jenis sampah baru berhasil ditambahkan');
+                    notificationSystem.showNotification(
+                        'Berhasil Ditambahkan',
+                        'Jenis sampah baru berhasil ditambahkan',
+                        'success'
+                    );
                     setTimeout(() => {
                         location.reload(); // Reload untuk update data terbaru
                     }, 1000);
                 } else {
-                    showToast('Gagal menambah jenis sampah: ' + data.message, 'error');
+                    notificationSystem.showNotification(
+                        'Gagal Menambah',
+                        `Gagal menambah jenis sampah: ${data.message}`,
+                        'error'
+                    );
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                showToast('Terjadi kesalahan saat menambah jenis sampah', 'error');
+                notificationSystem.closeNotification(loadingId);
+                notificationSystem.showNotification(
+                    'Kesalahan',
+                    'Terjadi kesalahan saat menambah jenis sampah',
+                    'error'
+                );
             });
         }
 
         // Delete price
-        function deletePrice(id) {
-            if (confirm('Apakah Anda yakin ingin menghapus harga ini?')) {
-                fetch('delete_price.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `id=${id}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Harga sampah berhasil dihapus');
-                        setTimeout(() => {
-                            location.reload(); // Reload untuk update data terbaru
-                        }, 1000);
-                    } else {
-                        showToast('Gagal menghapus harga: ' + data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    showToast('Terjadi kesalahan saat menghapus harga', 'error');
-                });
-            }
+        function deletePrice(id, jenis) {
+            notificationSystem.showConfirmation(
+                'Hapus Harga Sampah',
+                `Apakah Anda yakin ingin menghapus harga untuk <strong>"${jenis}"</strong>?`,
+                'danger'
+            ).then(confirmed => {
+                if (confirmed) {
+                    const loadingId = notificationSystem.showNotification(
+                        'Memproses',
+                        'Sedang menghapus harga sampah...',
+                        'info',
+                        0
+                    );
+
+                    fetch('../backend/delete_price.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `id=${id}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        notificationSystem.closeNotification(loadingId);
+                        
+                        if (data.success) {
+                            notificationSystem.showNotification(
+                                'Berhasil Dihapus',
+                                'Harga sampah berhasil dihapus',
+                                'success'
+                            );
+                            setTimeout(() => {
+                                location.reload(); // Reload untuk update data terbaru
+                            }, 1000);
+                        } else {
+                            notificationSystem.showNotification(
+                                'Gagal Menghapus',
+                                `Gagal menghapus harga: ${data.message}`,
+                                'error'
+                            );
+                        }
+                    })
+                    .catch(error => {
+                        notificationSystem.closeNotification(loadingId);
+                        notificationSystem.showNotification(
+                            'Kesalahan',
+                            'Terjadi kesalahan saat menghapus harga',
+                            'error'
+                        );
+                    });
+                }
+            });
         }
 
         // Auto update members from user dashboard
         function autoUpdateMembers() {
             // Simulate random new member registration (10% chance)
             if (Math.random() < 0.1) {
-                showToast('Memeriksa update data anggota...', 'info');
+                notificationSystem.showNotification('Update Data', 'Memeriksa update data anggota...', 'info');
             }
         }
 
@@ -2706,9 +2719,19 @@ function savePriceChanges() {
 
         // Reset database configuration
         function resetDbConfig() {
-            if (confirm('Apakah Anda yakin ingin mengembalikan pengaturan database ke nilai default?')) {
-                showToast('Pengaturan database berhasil direset');
-            }
+            notificationSystem.showConfirmation(
+                'Reset Konfigurasi',
+                'Apakah Anda yakin ingin mengembalikan pengaturan database ke nilai default?',
+                'warning'
+            ).then(confirmed => {
+                if (confirmed) {
+                    notificationSystem.showNotification(
+                        'Berhasil Direset',
+                        'Pengaturan database berhasil direset',
+                        'success'
+                    );
+                }
+            });
         }
 
         // Save database configuration
@@ -2724,7 +2747,11 @@ function savePriceChanges() {
                 saveDbConfigBtn.innerHTML = '<i class="fas fa-save"></i> Simpan Koneksi';
                 saveDbConfigBtn.disabled = false;
                 
-                showToast('Konfigurasi database berhasil disimpan');
+                notificationSystem.showNotification(
+                    'Berhasil Disimpan',
+                    'Konfigurasi database berhasil disimpan',
+                    'success'
+                );
             }, 1000);
         }
 
@@ -2741,53 +2768,16 @@ function savePriceChanges() {
                 testConnectionBtn.innerHTML = '<i class="fas fa-plug"></i> Test Koneksi';
                 testConnectionBtn.disabled = false;
                 
-                showToast('Koneksi database berhasil diuji dan berfungsi dengan baik');
+                notificationSystem.showNotification(
+                    'Koneksi Berhasil',
+                    'Koneksi database berhasil diuji dan berfungsi dengan baik',
+                    'success'
+                );
             }, 1500);
-        }
-
-        // Show toast notification
-        function showToast(message, type = 'success') {
-            toastMessage.textContent = message;
-            
-            // Change icon based on type
-            const icon = toast.querySelector('i');
-            if (type === 'error') {
-                icon.className = 'fas fa-exclamation-circle';
-                toast.style.backgroundColor = '#f44336';
-            } else if (type === 'info') {
-                icon.className = 'fas fa-info-circle';
-                toast.style.backgroundColor = '#2196f3';
-            } else {
-                icon.className = 'fas fa-check-circle';
-                toast.style.backgroundColor = 'var(--primary)';
-            }
-            
-            toast.classList.add('show');
-            
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
         }
 
         // Initialize the app when DOM is loaded
         document.addEventListener('DOMContentLoaded', init);
     </script>
-    <!-- Notification Container -->
-<div class="notification-container" id="notificationContainer"></div>
-
-<!-- Confirmation Modal -->
-<div class="confirmation-modal" id="confirmationModal">
-    <div class="confirmation-card" id="confirmationCard">
-        <div class="confirmation-icon warning" id="confirmationIcon">
-            <i class="fas fa-exclamation-triangle"></i>
-        </div>
-        <h3 class="confirmation-title" id="confirmationTitle">Konfirmasi Tindakan</h3>
-        <p class="confirmation-message" id="confirmationMessage">Apakah Anda yakin ingin melanjutkan tindakan ini?</p>
-        <div class="confirmation-buttons">
-            <button class="confirmation-btn cancel" id="confirmCancel">Batal</button>
-            <button class="confirmation-btn confirm" id="confirmOk">Ya, Lanjutkan</button>
-        </div>
-    </div>
-</div>
 </body>
 </html>
