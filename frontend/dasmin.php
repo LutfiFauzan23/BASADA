@@ -2,6 +2,7 @@
 session_start();
 include "../backend/connect.php";
 
+
 // Cek login
 if(!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
     header('Location: ../backend/login.php');
@@ -2226,7 +2227,7 @@ function approveWaste(id, name) {
     notificationSystem.showConfirmation(
         'Setujui Penjualan',
         `Apakah Anda yakin ingin menyetujui penjualan sampah dari <strong>"${name}"</strong>?<br><br>
-         <small>Saldo user akan ditambahkan sesuai total penjualan.</small>`,
+         <small>Saldo user akan ditambahkan sesuai total penjualan.</small>`, 
         'warning'
     ).then(confirmed => {
         if (confirmed) {
@@ -2237,6 +2238,7 @@ function approveWaste(id, name) {
                 0
             );
 
+            // Menggunakan file approve_waste.php yang sudah diupdate dengan PDO
             fetch('../backend/admin_control/approve_waste.php', {
                 method: 'POST',
                 headers: {
@@ -2244,7 +2246,12 @@ function approveWaste(id, name) {
                 },
                 body: `id=${id}&action=approve`
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
                 notificationSystem.closeNotification(loadingId);
                 
@@ -2271,7 +2278,7 @@ function approveWaste(id, name) {
                 notificationSystem.closeNotification(loadingId);
                 notificationSystem.showNotification(
                     'Kesalahan',
-                    'Terjadi kesalahan saat memproses',
+                    'Terjadi kesalahan saat memproses: ' + error.message,
                     'error'
                 );
                 console.error('Error:', error);
@@ -2349,7 +2356,6 @@ function refreshPending() {
         location.reload();
     }, 1000);
 }
-
         // Function to update stats after delete
         function updateStatsAfterDelete() {
             // Update total members count
